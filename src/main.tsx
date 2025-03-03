@@ -1,3 +1,4 @@
+import './polyfills';  // Importa os polyfills primeiro
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
