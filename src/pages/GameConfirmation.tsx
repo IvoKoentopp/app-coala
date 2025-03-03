@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 import Logo from '../components/Logo';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export default function GameConfirmation() {
   const { gameId } = useParams();
@@ -14,16 +16,23 @@ export default function GameConfirmation() {
   useEffect(() => {
     const loadMembers = async () => {
       try {
-        const { data, error } = await supabase
-          .from('members')
-          .select('id, nickname')
-          .order('nickname');
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/members?select=id,nickname&order=nickname`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`
+            }
+          }
+        );
 
-        if (error) {
-          console.error('Erro ao carregar membros:', error);
-          return;
+        if (!response.ok) {
+          throw new Error('Erro ao carregar membros');
         }
 
+        const data = await response.json();
+        console.log('Membros carregados:', data);
         setMembers(data || []);
       } catch (err) {
         console.error('Erro ao carregar membros:', err);
@@ -45,16 +54,30 @@ export default function GameConfirmation() {
 
     try {
       // 1. Verifica se o jogo existe e está agendado
-      const { data: game, error: gameError } = await supabase
-        .from('games')
-        .select('status')
-        .eq('id', gameId)
-        .maybeSingle();
+      const gameResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/games?id=eq.${gameId}&select=status`,
+        {
+          method: 'GET',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`
+          }
+        }
+      );
 
-      if (gameError || !game) {
+      if (!gameResponse.ok) {
+        throw new Error('Erro ao verificar jogo');
+      }
+
+      const gameData = await gameResponse.json();
+      console.log('Jogo:', gameData);
+
+      if (!gameData || !Array.isArray(gameData) || gameData.length === 0) {
         setError('Jogo não encontrado');
         return;
       }
+
+      const game = gameData[0];
 
       if (game.status !== 'Agendado') {
         setError('Este jogo não está mais agendado');
@@ -62,16 +85,26 @@ export default function GameConfirmation() {
       }
 
       // 2. Atualiza ou cria a confirmação
-      const { error: confirmError } = await supabase
-        .from('game_participants')
-        .upsert({
-          game_id: gameId,
-          member_id: memberId,
-          confirmed: willPlay
-        });
+      const confirmResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/game_participants`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'resolution=merge-duplicates'
+          },
+          body: JSON.stringify({
+            game_id: gameId,
+            member_id: memberId,
+            confirmed: willPlay
+          })
+        }
+      );
 
-      if (confirmError) {
-        throw confirmError;
+      if (!confirmResponse.ok) {
+        throw new Error('Erro ao confirmar presença');
       }
 
       setSuccess(willPlay ? 'Presença confirmada!' : 'Ausência registrada!');
