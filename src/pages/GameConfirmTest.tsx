@@ -20,26 +20,36 @@ export default function GameConfirmTest() {
 
     const fetchGame = async () => {
       try {
-        // Busca direta pelo ID usando o cliente Supabase original
-        const { data, error } = await supabase
+        // Primeiro vamos ver o que retorna sem o single()
+        const { data: allData, error: firstError } = await supabase
           .from('games')
           .select('*')
-          .eq('id', gameId)
-          .single();
+          .eq('id', gameId);
 
-        if (error) {
-          console.error('Erro Supabase:', error);
-          setError(error.message);
+        console.log('Primeira tentativa:', { allData, firstError });
+
+        if (firstError) {
+          console.error('Erro na primeira tentativa:', firstError);
+          setError(firstError.message);
           return;
         }
 
-        if (!data) {
+        if (!allData || allData.length === 0) {
+          console.log('Nenhum jogo encontrado');
           setError('Jogo não encontrado');
           return;
         }
 
-        console.log('Jogo encontrado:', data);
-        setGame(data);
+        if (allData.length > 1) {
+          console.log('Múltiplos jogos encontrados:', allData);
+          setError('Múltiplos jogos encontrados com o mesmo ID');
+          return;
+        }
+
+        // Se chegou aqui, temos exatamente um jogo
+        const game = allData[0];
+        console.log('Jogo encontrado:', game);
+        setGame(game);
       } catch (err) {
         console.error('Erro:', err);
         setError('Erro ao buscar jogo');
@@ -57,10 +67,15 @@ export default function GameConfirmTest() {
 
   if (error) {
     return (
-      <div>
-        <h1>Erro</h1>
-        <p>{error}</p>
-        <pre>Game ID: {gameId}</pre>
+      <div style={{ padding: '20px' }}>
+        <h1 style={{ color: 'red', marginBottom: '20px' }}>Erro</h1>
+        <p style={{ marginBottom: '10px' }}>{error}</p>
+        <div style={{ marginBottom: '20px' }}>
+          <strong>Game ID:</strong> {gameId}
+        </div>
+        <div>
+          <strong>URL do Supabase:</strong> {supabase.supabaseUrl}
+        </div>
       </div>
     );
   }
@@ -70,11 +85,24 @@ export default function GameConfirmTest() {
   }
 
   return (
-    <div>
-      <h1>Teste de Confirmação</h1>
+    <div style={{ padding: '20px' }}>
+      <h1 style={{ marginBottom: '20px' }}>Teste de Confirmação</h1>
       <div>
-        <h2>Dados do Jogo:</h2>
-        <pre>{JSON.stringify(game, null, 2)}</pre>
+        <h2 style={{ marginBottom: '10px' }}>Dados do Jogo:</h2>
+        <div style={{ marginBottom: '20px' }}>
+          <p><strong>ID:</strong> {game.id}</p>
+          <p><strong>Status:</strong> {game.status}</p>
+          <p><strong>Data:</strong> {new Date(game.date).toLocaleDateString()}</p>
+          <p><strong>Campo:</strong> {game.field}</p>
+        </div>
+        <pre style={{ 
+          background: '#f5f5f5', 
+          padding: '10px', 
+          borderRadius: '4px',
+          overflow: 'auto'
+        }}>
+          {JSON.stringify(game, null, 2)}
+        </pre>
       </div>
     </div>
   );
