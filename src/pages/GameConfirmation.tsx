@@ -29,15 +29,6 @@ export default function GameConfirmation() {
     }
 
     try {
-      // Primeiro testa a conexão
-      const isConnected = await testConnection();
-      if (!isConnected) {
-        setError('Erro de conexão com o servidor');
-        setLoading(false);
-        return;
-      }
-
-      // Busca o jogo
       const { data, error } = await supabase
         .from('games')
         .select('id, status, date, field')
@@ -100,17 +91,47 @@ export default function GameConfirmation() {
         return;
       }
 
-      // Atualiza a participação
-      const { error: updateError } = await supabase
+      // Verifica se já existe uma participação
+      const { data: existingParticipation, error: participationError } = await supabase
         .from('game_participants')
-        .update({ confirmed: true })
+        .select('id, confirmed')
         .eq('game_id', game.id)
-        .eq('member_id', member.id);
+        .eq('member_id', member.id)
+        .single();
 
-      if (updateError) {
-        console.error('Update error:', updateError);
-        setError('Erro ao confirmar presença');
+      if (participationError && participationError.code !== 'PGRST116') {
+        console.error('Participation check error:', participationError);
+        setError('Erro ao verificar participação');
         return;
+      }
+
+      if (existingParticipation) {
+        // Atualiza a participação existente
+        const { error: updateError } = await supabase
+          .from('game_participants')
+          .update({ confirmed: true })
+          .eq('id', existingParticipation.id);
+
+        if (updateError) {
+          console.error('Update error:', updateError);
+          setError('Erro ao confirmar presença');
+          return;
+        }
+      } else {
+        // Cria uma nova participação
+        const { error: insertError } = await supabase
+          .from('game_participants')
+          .insert({
+            game_id: game.id,
+            member_id: member.id,
+            confirmed: true
+          });
+
+        if (insertError) {
+          console.error('Insert error:', insertError);
+          setError('Erro ao confirmar presença');
+          return;
+        }
       }
 
       setError('');
