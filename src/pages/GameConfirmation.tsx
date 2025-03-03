@@ -1,107 +1,131 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import Logo from '../components/Logo';
-
-interface Game {
-  id: string;
-  status: string;
-  date: string;
-  field: string;
-}
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export default function GameConfirmation() {
   const { gameId } = useParams();
+  const [nickname, setNickname] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [game, setGame] = useState<Game | null>(null);
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    checkGame();
-  }, [gameId]);
-
-  const checkGame = async () => {
-    if (!gameId) {
-      setError('Link inválido');
-      setLoading(false);
+  const handleConfirmation = async (willPlay: boolean) => {
+    if (!nickname.trim()) {
+      setError('Por favor, informe seu apelido');
       return;
     }
 
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
     try {
-      // Primeiro vamos ver todos os jogos para debug
-      const allGamesResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/games?select=id`,
-        {
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`
-          }
-        }
-      );
-      
-      const allGames = await allGamesResponse.json();
-      console.log('Todos os jogos:', allGames);
+      // 1. Verifica se o membro existe
+      const { data: member, error: memberError } = await supabase
+        .from('members')
+        .select('id')
+        .eq('nickname', nickname.trim())
+        .single();
 
-      // Agora busca o jogo específico
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/games?id=eq.${encodeURIComponent(gameId)}&select=id,status,date,field`,
-        {
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Accept': 'application/json'
-          }
-        }
-      );
-
-      console.log('URL:', `${SUPABASE_URL}/rest/v1/games?id=eq.${encodeURIComponent(gameId)}`);
-      console.log('Status:', response.status);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Dados do jogo:', data);
-
-      if (!data || data.length === 0) {
-        setError('Jogo não encontrado');
-        setLoading(false);
+      if (memberError || !member) {
+        setError('Apelido não encontrado. Verifique se digitou corretamente.');
         return;
       }
 
-      setGame(data[0]);
-      setLoading(false);
+      // 2. Verifica se o jogo existe e está agendado
+      const { data: game, error: gameError } = await supabase
+        .from('games')
+        .select('status')
+        .eq('id', gameId)
+        .single();
+
+      if (gameError || !game) {
+        setError('Jogo não encontrado');
+        return;
+      }
+
+      if (game.status !== 'Agendado') {
+        setError('Este jogo não está mais agendado');
+        return;
+      }
+
+      // 3. Atualiza ou cria a confirmação
+      const { error: confirmError } = await supabase
+        .from('game_participants')
+        .upsert({
+          game_id: gameId,
+          member_id: member.id,
+          confirmed: willPlay
+        });
+
+      if (confirmError) {
+        throw confirmError;
+      }
+
+      setSuccess(willPlay ? 'Presença confirmada!' : 'Ausência registrada!');
     } catch (err) {
       console.error('Erro:', err);
-      setError('Erro ao carregar o jogo');
+      setError('Erro ao processar sua confirmação');
+    } finally {
       setLoading(false);
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
-
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50">
       <Logo />
       
-      {error ? (
-        <div className="mt-4 text-red-600">{error}</div>
-      ) : game ? (
-        <div className="mt-8 w-full max-w-md">
-          <div className="mb-6 text-center">
-            <h2 className="text-xl font-bold mb-2">Confirmação de Presença</h2>
-            <p className="text-gray-600">Data: {new Date(game.date).toLocaleDateString()}</p>
-            <p className="text-gray-600">Local: {game.field}</p>
-            <p className="text-gray-600">Status: {game.status}</p>
-            <pre className="mt-4 p-2 bg-gray-100 rounded text-sm overflow-auto">
-              {JSON.stringify(game, null, 2)}
-            </pre>
+      <div className="mt-8 w-full max-w-md bg-white rounded-lg shadow p-6">
+        <h2 className="text-2xl font-bold text-center mb-6">Confirmação de Presença</h2>
+
+        {success ? (
+          <div className="text-center">
+            <div className="mb-4 text-green-600 font-medium">{success}</div>
+            <p className="text-gray-600">Obrigado por confirmar!</p>
           </div>
-        </div>
-      ) : null}
+        ) : (
+          <>
+            {error && (
+              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
+                {error}
+              </div>
+            )}
+
+            <div className="mb-6">
+              <label className="block text-gray-700 text-sm font-bold mb-2">
+                Seu Apelido
+              </label>
+              <input
+                type="text"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="Digite seu apelido"
+                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={loading}
+              />
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => handleConfirmation(true)}
+                disabled={loading}
+                className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                {loading ? 'Processando...' : 'Vou Jogar'}
+              </button>
+              
+              <button
+                onClick={() => handleConfirmation(false)}
+                disabled={loading}
+                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {loading ? 'Processando...' : 'Não Vou Jogar'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
