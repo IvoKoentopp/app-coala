@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 import Logo from '../components/Logo';
 
 interface Game {
@@ -9,6 +8,9 @@ interface Game {
   date: string;
   field: string;
 }
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export default function GameConfirmation() {
   const { gameId } = useParams();
@@ -30,28 +32,32 @@ export default function GameConfirmation() {
     try {
       console.log('Buscando jogo:', gameId);
       
-      const { data, error } = await supabase
-        .from('games')
-        .select('*')
-        .eq('id', gameId)
-        .maybeSingle();
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/games?id=eq.${gameId}&select=id,status,date,field`,
+        {
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`
+          }
+        }
+      );
 
-      console.log('Resposta:', { data, error });
-
-      if (error) {
-        console.error('Erro ao buscar jogo:', error);
-        setError('Erro ao carregar o jogo');
-        setLoading(false);
-        return;
+      console.log('Status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
+      const data = await response.json();
+      console.log('Dados:', data);
 
-      if (!data) {
+      if (!data || data.length === 0) {
         setError('Jogo não encontrado');
         setLoading(false);
         return;
       }
 
-      setGame(data);
+      setGame(data[0]);
       setLoading(false);
     } catch (err) {
       console.error('Erro:', err);
@@ -75,6 +81,9 @@ export default function GameConfirmation() {
             <p className="text-gray-600">Data: {new Date(game.date).toLocaleDateString()}</p>
             <p className="text-gray-600">Local: {game.field}</p>
             <p className="text-gray-600">Status: {game.status}</p>
+            <pre className="mt-4 p-2 bg-gray-100 rounded text-sm overflow-auto">
+              {JSON.stringify(game, null, 2)}
+            </pre>
           </div>
         </div>
       ) : null}
