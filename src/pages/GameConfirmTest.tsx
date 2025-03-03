@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 
 interface Game {
   id: string;
@@ -8,6 +7,9 @@ interface Game {
   date: string;
   field: string;
 }
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export default function GameConfirmTest() {
   const { gameId } = useParams();
@@ -22,37 +24,66 @@ export default function GameConfirmTest() {
     const fetchGames = async () => {
       try {
         // Primeiro lista todos os jogos
-        const { data: games, error: gamesError } = await supabase
-          .from('games')
-          .select('*');
+        const gamesResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/games?select=*`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Accept-Profile': 'public',
+              'Accept-Encoding': 'gzip',
+              'X-Client-Info': 'supabase-js/2.39.3'
+            }
+          }
+        );
 
+        console.log('Status da resposta:', gamesResponse.status);
+        console.log('Headers da resposta:', Object.fromEntries(gamesResponse.headers.entries()));
+        
+        const games = await gamesResponse.json();
         console.log('Todos os jogos:', games);
         console.log('ID procurado:', gameId);
 
-        if (gamesError) {
-          console.error('Erro ao listar jogos:', gamesError);
-          setError(gamesError.message);
-          return;
-        }
-
-        if (!games || games.length === 0) {
-          console.log('Nenhum jogo encontrado na tabela');
-          setError('Nenhum jogo encontrado na tabela');
+        if (!games || !Array.isArray(games)) {
+          console.log('Resposta inválida:', games);
+          setError('Resposta inválida do servidor');
           return;
         }
 
         setAllGames(games);
 
-        // Procura o jogo específico
-        const foundGame = games.find(g => g.id === gameId);
-        console.log('Jogo encontrado:', foundGame);
+        // Agora busca o jogo específico
+        const gameResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/games?id=eq.${encodeURIComponent(gameId)}&select=*`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Accept-Profile': 'public',
+              'Accept-Encoding': 'gzip',
+              'X-Client-Info': 'supabase-js/2.39.3'
+            }
+          }
+        );
 
-        if (!foundGame) {
+        console.log('Status da resposta do jogo:', gameResponse.status);
+        console.log('Headers da resposta do jogo:', Object.fromEntries(gameResponse.headers.entries()));
+        
+        const gameData = await gameResponse.json();
+        console.log('Dados do jogo:', gameData);
+
+        if (!gameData || !Array.isArray(gameData) || gameData.length === 0) {
           setError('Jogo específico não encontrado');
           return;
         }
 
-        setGame(foundGame);
+        setGame(gameData[0]);
       } catch (err) {
         console.error('Erro:', err);
         setError('Erro ao buscar jogos');
@@ -72,12 +103,16 @@ export default function GameConfirmTest() {
     <div style={{ padding: '20px' }}>
       <h1 style={{ marginBottom: '20px' }}>Teste de Confirmação</h1>
       
+      <div style={{ marginBottom: '20px' }}>
+        <h2>Configuração:</h2>
+        <div><strong>URL:</strong> {SUPABASE_URL}</div>
+        <div><strong>Game ID:</strong> {gameId}</div>
+      </div>
+
       {error ? (
         <div style={{ marginBottom: '20px' }}>
           <h2 style={{ color: 'red' }}>Erro</h2>
           <p>{error}</p>
-          <div><strong>Game ID procurado:</strong> {gameId}</div>
-          <div><strong>URL do Supabase:</strong> {supabase.supabaseUrl}</div>
         </div>
       ) : game ? (
         <div>
