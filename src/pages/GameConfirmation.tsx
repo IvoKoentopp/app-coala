@@ -3,10 +3,16 @@ import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import Logo from '../components/Logo';
 
+interface Game {
+  id: string;
+  status: string;
+}
+
 export default function GameConfirmation() {
   const { gameId } = useParams();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [game, setGame] = useState<Game | null>(null);
   const [nickname, setNickname] = useState('');
 
   useEffect(() => {
@@ -21,59 +27,92 @@ export default function GameConfirmation() {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data: game, error } = await supabase
         .from('games')
-        .select('status')
+        .select('id, status')
         .eq('id', gameId)
-        .single();
+        .limit(1)
+        .maybeSingle();
 
-      if (error || !data) {
+      if (error) {
+        console.error('Error:', error);
+        setError('Erro ao carregar o jogo');
+        setLoading(false);
+        return;
+      }
+
+      if (!game) {
         setError('Jogo não encontrado');
         setLoading(false);
         return;
       }
 
-      if (data.status !== 'Agendado') {
+      if (game.id !== gameId) {
+        setError('ID do jogo inválido');
+        setLoading(false);
+        return;
+      }
+
+      if (game.status !== 'Agendado') {
         setError('Este jogo não está agendado');
         setLoading(false);
         return;
       }
 
+      setGame(game);
       setLoading(false);
     } catch (err) {
+      console.error('Error:', err);
       setError('Erro ao carregar o jogo');
       setLoading(false);
     }
   };
 
   const handleConfirm = async () => {
+    if (!game) return;
+    
     if (!nickname.trim()) {
       setError('Digite seu apelido');
       return;
     }
 
     try {
-      const { data: member } = await supabase
+      // Primeiro busca o membro pelo apelido
+      const { data: member, error: memberError } = await supabase
         .from('members')
         .select('id')
-        .eq('nickname', nickname)
+        .eq('nickname', nickname.trim())
         .eq('status', 'Ativo')
-        .single();
+        .maybeSingle();
 
-      if (!member) {
-        setError('Membro não encontrado');
+      if (memberError) {
+        console.error('Member error:', memberError);
+        setError('Erro ao buscar membro');
         return;
       }
 
-      await supabase
+      if (!member) {
+        setError('Membro não encontrado ou inativo');
+        return;
+      }
+
+      // Atualiza a participação
+      const { error: updateError } = await supabase
         .from('game_participants')
         .update({ confirmed: true })
-        .eq('game_id', gameId)
+        .eq('game_id', game.id)
         .eq('member_id', member.id);
+
+      if (updateError) {
+        console.error('Update error:', updateError);
+        setError('Erro ao confirmar presença');
+        return;
+      }
 
       setError('');
       alert('Presença confirmada com sucesso!');
     } catch (err) {
+      console.error('Error:', err);
       setError('Erro ao confirmar presença');
     }
   };
