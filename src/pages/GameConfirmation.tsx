@@ -5,6 +5,10 @@ import Logo from '../components/Logo';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Log das variáveis de ambiente
+console.log('URL:', SUPABASE_URL);
+console.log('KEY:', SUPABASE_KEY);
+
 export default function GameConfirmation() {
   const { gameId } = useParams();
   const [memberId, setMemberId] = useState('');
@@ -16,19 +20,28 @@ export default function GameConfirmation() {
   useEffect(() => {
     const loadMembers = async () => {
       try {
-        const response = await fetch(
-          `${SUPABASE_URL}/rest/v1/members?select=id,nickname&order=nickname`,
-          {
-            method: 'GET',
-            headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`
-            }
+        const url = `${SUPABASE_URL}/rest/v1/members?select=id,nickname&order=nickname`;
+        console.log('URL da requisição:', url);
+        console.log('Headers:', {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        });
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`
           }
-        );
+        });
+
+        console.log('Status:', response.status);
+        console.log('Status Text:', response.statusText);
 
         if (!response.ok) {
-          throw new Error('Erro ao carregar membros');
+          const errorText = await response.text();
+          console.error('Erro response:', errorText);
+          throw new Error(`Erro ao carregar membros: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
