@@ -57,7 +57,10 @@ export default function GameConfirmation() {
         .from('games')
         .select('*')
         .eq('id', gameId)
-        .single();
+        .single()
+        .headers({
+          'Prefer': 'return=minimal'
+        });
 
       if (error) throw error;
       
