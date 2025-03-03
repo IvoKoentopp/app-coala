@@ -15,7 +15,6 @@ export default function GameConfirmation() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [game, setGame] = useState<Game | null>(null);
-  const [nickname, setNickname] = useState('');
 
   useEffect(() => {
     checkGame();
@@ -29,14 +28,18 @@ export default function GameConfirmation() {
     }
 
     try {
+      console.log('Buscando jogo:', gameId);
+      
       const { data, error } = await supabase
         .from('games')
-        .select('id, status, date, field')
+        .select('*')
         .eq('id', gameId)
-        .single();
+        .maybeSingle();
+
+      console.log('Resposta:', { data, error });
 
       if (error) {
-        console.error('Error fetching game:', error);
+        console.error('Erro ao buscar jogo:', error);
         setError('Erro ao carregar o jogo');
         setLoading(false);
         return;
@@ -48,97 +51,12 @@ export default function GameConfirmation() {
         return;
       }
 
-      if (data.status !== 'Agendado') {
-        setError('Este jogo não está agendado');
-        setLoading(false);
-        return;
-      }
-
       setGame(data);
       setLoading(false);
     } catch (err) {
-      console.error('Error:', err);
+      console.error('Erro:', err);
       setError('Erro ao carregar o jogo');
       setLoading(false);
-    }
-  };
-
-  const handleConfirm = async () => {
-    if (!game) return;
-    
-    if (!nickname.trim()) {
-      setError('Digite seu apelido');
-      return;
-    }
-
-    try {
-      // Primeiro busca o membro pelo apelido
-      const { data: member, error: memberError } = await supabase
-        .from('members')
-        .select('id')
-        .eq('nickname', nickname.trim())
-        .eq('status', 'Ativo')
-        .single();
-
-      if (memberError) {
-        console.error('Member error:', memberError);
-        setError('Erro ao buscar membro');
-        return;
-      }
-
-      if (!member) {
-        setError('Membro não encontrado ou inativo');
-        return;
-      }
-
-      // Verifica se já existe uma participação
-      const { data: existingParticipation, error: participationError } = await supabase
-        .from('game_participants')
-        .select('id, confirmed')
-        .eq('game_id', game.id)
-        .eq('member_id', member.id)
-        .single();
-
-      if (participationError && participationError.code !== 'PGRST116') {
-        console.error('Participation check error:', participationError);
-        setError('Erro ao verificar participação');
-        return;
-      }
-
-      if (existingParticipation) {
-        // Atualiza a participação existente
-        const { error: updateError } = await supabase
-          .from('game_participants')
-          .update({ confirmed: true })
-          .eq('id', existingParticipation.id);
-
-        if (updateError) {
-          console.error('Update error:', updateError);
-          setError('Erro ao confirmar presença');
-          return;
-        }
-      } else {
-        // Cria uma nova participação
-        const { error: insertError } = await supabase
-          .from('game_participants')
-          .insert({
-            game_id: game.id,
-            member_id: member.id,
-            confirmed: true
-          });
-
-        if (insertError) {
-          console.error('Insert error:', insertError);
-          setError('Erro ao confirmar presença');
-          return;
-        }
-      }
-
-      setError('');
-      alert('Presença confirmada com sucesso!');
-    } catch (err) {
-      console.error('Error:', err);
-      setError('Erro ao confirmar presença');
     }
   };
 
@@ -156,20 +74,8 @@ export default function GameConfirmation() {
             <h2 className="text-xl font-bold mb-2">Confirmação de Presença</h2>
             <p className="text-gray-600">Data: {new Date(game.date).toLocaleDateString()}</p>
             <p className="text-gray-600">Local: {game.field}</p>
+            <p className="text-gray-600">Status: {game.status}</p>
           </div>
-          <input
-            type="text"
-            placeholder="Digite seu apelido"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            className="w-full p-2 border rounded"
-          />
-          <button
-            onClick={handleConfirm}
-            className="w-full mt-4 p-2 bg-green-600 text-white rounded hover:bg-green-700"
-          >
-            Confirmar Presença
-          </button>
         </div>
       ) : null}
     </div>

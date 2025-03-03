@@ -36,9 +36,8 @@ const initSupabase = () => {
       },
       global: {
         headers: { 
-          'x-application-name': 'coala-club',
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Prefer': 'return=minimal',
+          'Accept': '*/*'
         },
       },
     });
