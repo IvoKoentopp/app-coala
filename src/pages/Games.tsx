@@ -31,7 +31,7 @@ interface GameParticipant {
 }
 
 // Add deployed site URL constant
-const SITE_URL = 'https://gleeful-boba-44f6c3.netlify.app';
+const SITE_URL = 'https://app-coala.vercel.app';
 
 export default function Games() {
   const navigate = useNavigate();
@@ -372,7 +372,8 @@ export default function Games() {
         // Open WhatsApp with the first pending participant that has a phone number
         const firstParticipant = participants[0];
         const phone = firstParticipant.members.phone.replace(/\D/g, ''); // Remove non-digits
-        window.open(`https://wa.me/${phone}?text=${message} ${confirmationUrl}`, '_blank');
+        const encodedMessage = encodeURIComponent(`${message} ${confirmationUrl}`);
+        window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
 
         setSuccess('Link do WhatsApp gerado com sucesso!');
         setTimeout(() => setSuccess(null), 3000);
