@@ -25,6 +25,7 @@ import MonthlyFees from './pages/MonthlyFees';
 import { AuthProvider } from './contexts/AuthContext';
 import { SidebarProvider } from './contexts/SidebarContext';
 import PrivateRoute from './pages/PrivateRoute';
+import GameConfirmTest from './pages/GameConfirmTest';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/game-confirmation/:gameId" element={<GameConfirmation />} />
+            <Route path="/game-confirm-test/:gameId" element={<GameConfirmTest />} />
             <Route
               path="/"
               element={
