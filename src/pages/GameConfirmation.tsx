@@ -53,29 +53,35 @@ export default function GameConfirmation() {
         return;
       }
 
-      const { data, error } = await supabase
+      // Primeiro, busca apenas o jogo
+      const { data: gameData, error: gameError } = await supabase
         .from('games')
-        .select('id, status')
+        .select(`
+          id,
+          date,
+          field,
+          status
+        `)
         .eq('id', gameId)
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        console.error('Error fetching game:', error);
+      if (gameError) {
+        console.error('Error fetching game:', gameError);
         setError('Erro ao carregar os dados do jogo');
         return;
       }
       
-      if (!data) {
+      if (!gameData) {
         setError('Jogo não encontrado');
         return;
       }
 
-      if (data.status !== 'Agendado') {
-        setError(`Este jogo está ${data.status.toLowerCase()}. Não é possível confirmar presença.`);
+      if (gameData.status !== 'Agendado') {
+        setError(`Este jogo está ${gameData.status.toLowerCase()}. Não é possível confirmar presença.`);
         return;
       }
 
-      setGame(data);
+      setGame(gameData);
     } catch (err) {
       console.error('Error fetching game:', err);
       setError('Erro ao carregar os dados do jogo');
