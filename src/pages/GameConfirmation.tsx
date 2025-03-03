@@ -30,10 +30,9 @@ export default function GameConfirmation() {
     }
 
     try {
-      console.log('Buscando jogo:', gameId);
-      
-      const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/games?id=eq.${gameId}&select=id,status,date,field`,
+      // Primeiro vamos ver todos os jogos para debug
+      const allGamesResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/games?select=id`,
         {
           headers: {
             'apikey': SUPABASE_KEY,
@@ -41,7 +40,23 @@ export default function GameConfirmation() {
           }
         }
       );
+      
+      const allGames = await allGamesResponse.json();
+      console.log('Todos os jogos:', allGames);
 
+      // Agora busca o jogo específico
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/games?id=eq.${encodeURIComponent(gameId)}&select=id,status,date,field`,
+        {
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      console.log('URL:', `${SUPABASE_URL}/rest/v1/games?id=eq.${encodeURIComponent(gameId)}`);
       console.log('Status:', response.status);
       
       if (!response.ok) {
@@ -49,7 +64,7 @@ export default function GameConfirmation() {
       }
       
       const data = await response.json();
-      console.log('Dados:', data);
+      console.log('Dados do jogo:', data);
 
       if (!data || data.length === 0) {
         setError('Jogo não encontrado');
