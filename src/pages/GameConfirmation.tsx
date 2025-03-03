@@ -5,13 +5,12 @@ import Logo from '../components/Logo';
 
 export default function GameConfirmation() {
   const { gameId } = useParams();
-  const [nickname, setNickname] = useState('');
+  const [memberId, setMemberId] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [allMembers, setAllMembers] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
 
-  // Carrega todos os membros para debug
   useEffect(() => {
     const loadMembers = async () => {
       try {
@@ -20,14 +19,12 @@ export default function GameConfirmation() {
           .select('id, nickname')
           .order('nickname');
 
-        console.log('Resposta membros:', { data, error });
-
         if (error) {
           console.error('Erro ao carregar membros:', error);
           return;
         }
 
-        setAllMembers(data || []);
+        setMembers(data || []);
       } catch (err) {
         console.error('Erro ao carregar membros:', err);
       }
@@ -37,8 +34,8 @@ export default function GameConfirmation() {
   }, []);
 
   const handleConfirmation = async (willPlay: boolean) => {
-    if (!nickname.trim()) {
-      setError('Por favor, informe seu apelido');
+    if (!memberId) {
+      setError('Por favor, selecione seu nome');
       return;
     }
 
@@ -47,29 +44,12 @@ export default function GameConfirmation() {
     setSuccess('');
 
     try {
-      // 1. Verifica se o membro existe
-      const { data: member, error: memberError } = await supabase
-        .from('members')
-        .select('id')
-        .eq('nickname', nickname.trim())
-        .maybeSingle();
-
-      console.log('Resposta membro:', { member, memberError });
-      console.log('Apelido buscado:', nickname.trim());
-
-      if (memberError || !member) {
-        setError('Apelido não encontrado. Verifique se digitou corretamente.');
-        return;
-      }
-
-      // 2. Verifica se o jogo existe e está agendado
+      // 1. Verifica se o jogo existe e está agendado
       const { data: game, error: gameError } = await supabase
         .from('games')
         .select('status')
         .eq('id', gameId)
         .maybeSingle();
-
-      console.log('Resposta jogo:', { game, gameError });
 
       if (gameError || !game) {
         setError('Jogo não encontrado');
@@ -81,12 +61,12 @@ export default function GameConfirmation() {
         return;
       }
 
-      // 3. Atualiza ou cria a confirmação
+      // 2. Atualiza ou cria a confirmação
       const { error: confirmError } = await supabase
         .from('game_participants')
         .upsert({
           game_id: gameId,
-          member_id: member.id,
+          member_id: memberId,
           confirmed: willPlay
         });
 
@@ -125,19 +105,21 @@ export default function GameConfirmation() {
 
             <div className="mb-6">
               <label className="block text-gray-700 text-sm font-bold mb-2">
-                Seu Apelido
+                Selecione seu Nome
               </label>
-              <input
-                type="text"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder="Digite seu apelido"
+              <select
+                value={memberId}
+                onChange={(e) => setMemberId(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={loading}
-              />
-              <div className="mt-2 text-sm text-gray-600">
-                Apelidos disponíveis: {allMembers.map(m => m.nickname).join(', ')}
-              </div>
+              >
+                <option value="">Selecione...</option>
+                {members.map(member => (
+                  <option key={member.id} value={member.id}>
+                    {member.nickname}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="flex gap-4">
