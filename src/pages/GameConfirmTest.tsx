@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
 interface Game {
   id: string;
@@ -7,9 +8,6 @@ interface Game {
   date: string;
   field: string;
 }
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export default function GameConfirmTest() {
   const { gameId } = useParams();
@@ -23,67 +21,49 @@ export default function GameConfirmTest() {
 
     const fetchGames = async () => {
       try {
-        // Primeiro lista todos os jogos
-        const gamesResponse = await fetch(
-          `${SUPABASE_URL}/rest/v1/games?select=*`,
-          {
-            method: 'GET',
-            headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`,
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-              'Accept-Profile': 'public',
-              'Accept-Encoding': 'gzip',
-              'X-Client-Info': 'supabase-js/2.39.3'
-            }
-          }
-        );
+        // Busca todos os jogos usando o mesmo código do Games.tsx
+        const { data: gamesData, error: gamesError } = await supabase
+          .from('games')
+          .select('*')
+          .order('date', { ascending: false });
 
-        console.log('Status da resposta:', gamesResponse.status);
-        console.log('Headers da resposta:', Object.fromEntries(gamesResponse.headers.entries()));
-        
-        const games = await gamesResponse.json();
-        console.log('Todos os jogos:', games);
-        console.log('ID procurado:', gameId);
+        console.log('Resposta do Supabase:', { gamesData, gamesError });
 
-        if (!games || !Array.isArray(games)) {
-          console.log('Resposta inválida:', games);
-          setError('Resposta inválida do servidor');
+        if (gamesError) {
+          console.error('Erro ao buscar jogos:', gamesError);
+          setError(gamesError.message);
           return;
         }
 
-        setAllGames(games);
+        if (!gamesData) {
+          console.log('Nenhum jogo encontrado');
+          setError('Nenhum jogo encontrado');
+          return;
+        }
 
-        // Agora busca o jogo específico
-        const gameResponse = await fetch(
-          `${SUPABASE_URL}/rest/v1/games?id=eq.${encodeURIComponent(gameId)}&select=*`,
-          {
-            method: 'GET',
-            headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`,
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-              'Accept-Profile': 'public',
-              'Accept-Encoding': 'gzip',
-              'X-Client-Info': 'supabase-js/2.39.3'
-            }
-          }
-        );
+        setAllGames(gamesData);
 
-        console.log('Status da resposta do jogo:', gameResponse.status);
-        console.log('Headers da resposta do jogo:', Object.fromEntries(gameResponse.headers.entries()));
-        
-        const gameData = await gameResponse.json();
-        console.log('Dados do jogo:', gameData);
+        // Busca o jogo específico
+        const { data: gameData, error: gameError } = await supabase
+          .from('games')
+          .select('*')
+          .eq('id', gameId)
+          .maybeSingle();
 
-        if (!gameData || !Array.isArray(gameData) || gameData.length === 0) {
+        console.log('Resposta do jogo específico:', { gameData, gameError });
+
+        if (gameError) {
+          console.error('Erro ao buscar jogo específico:', gameError);
+          setError(gameError.message);
+          return;
+        }
+
+        if (!gameData) {
           setError('Jogo específico não encontrado');
           return;
         }
 
-        setGame(gameData[0]);
+        setGame(gameData);
       } catch (err) {
         console.error('Erro:', err);
         setError('Erro ao buscar jogos');
@@ -105,8 +85,9 @@ export default function GameConfirmTest() {
       
       <div style={{ marginBottom: '20px' }}>
         <h2>Configuração:</h2>
-        <div><strong>URL:</strong> {SUPABASE_URL}</div>
         <div><strong>Game ID:</strong> {gameId}</div>
+        <div><strong>URL:</strong> {supabase.supabaseUrl}</div>
+        <div><strong>Autenticação:</strong> {supabase.supabaseKey ? 'Presente' : 'Ausente'}</div>
       </div>
 
       {error ? (
