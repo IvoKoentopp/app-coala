@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import Logo from '../components/Logo';
 
@@ -11,6 +11,35 @@ export default function GameConfirmation() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [allMembers, setAllMembers] = useState<any[]>([]);
+
+  // Carrega todos os membros para debug
+  useEffect(() => {
+    const loadMembers = async () => {
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/members?select=id,nickname`,
+          {
+            method: 'GET',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        const data = await response.json();
+        console.log('Todos os membros:', data);
+        setAllMembers(data || []);
+      } catch (err) {
+        console.error('Erro ao carregar membros:', err);
+      }
+    };
+
+    loadMembers();
+  }, []);
 
   const handleConfirmation = async (willPlay: boolean) => {
     if (!nickname.trim()) {
@@ -39,6 +68,7 @@ export default function GameConfirmation() {
 
       const memberData = await memberResponse.json();
       console.log('Resposta do membro:', memberData);
+      console.log('Apelido buscado:', nickname.trim());
 
       if (!memberData || !Array.isArray(memberData) || memberData.length === 0) {
         setError('Apelido não encontrado. Verifique se digitou corretamente.');
@@ -141,6 +171,9 @@ export default function GameConfirmation() {
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={loading}
               />
+              <div className="mt-2 text-sm text-gray-600">
+                Apelidos disponíveis: {allMembers.map(m => m.nickname).join(', ')}
+              </div>
             </div>
 
             <div className="flex gap-4">
