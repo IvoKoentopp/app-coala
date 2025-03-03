@@ -33,7 +33,7 @@ export default function GameConfirmation() {
         .from('games')
         .select('id, status')
         .eq('id', gameId)
-        .single();
+        .maybeSingle();
 
       console.log('Response:', { game, error });
 
@@ -46,12 +46,6 @@ export default function GameConfirmation() {
 
       if (!game) {
         setError('Jogo não encontrado');
-        setLoading(false);
-        return;
-      }
-
-      if (game.id !== gameId) {
-        setError('ID do jogo inválido');
         setLoading(false);
         return;
       }
