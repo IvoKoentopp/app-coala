@@ -1,63 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 import Logo from '../components/Logo';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Log das variáveis de ambiente
-console.log('URL:', SUPABASE_URL);
-console.log('KEY:', SUPABASE_KEY);
 
 export default function GameConfirmation() {
   const { gameId } = useParams();
-  const [memberId, setMemberId] = useState('');
+  const [nickname, setNickname] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [members, setMembers] = useState<any[]>([]);
-
-  useEffect(() => {
-    const loadMembers = async () => {
-      try {
-        const url = `${SUPABASE_URL}/rest/v1/members?select=id,nickname&order=nickname`;
-        console.log('URL da requisição:', url);
-        console.log('Headers:', {
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`
-        });
-
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`
-          }
-        });
-
-        console.log('Status:', response.status);
-        console.log('Status Text:', response.statusText);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Erro response:', errorText);
-          throw new Error(`Erro ao carregar membros: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        console.log('Membros carregados:', data);
-        setMembers(data || []);
-      } catch (err) {
-        console.error('Erro ao carregar membros:', err);
-      }
-    };
-
-    loadMembers();
-  }, []);
 
   const handleConfirmation = async (willPlay: boolean) => {
-    if (!memberId) {
-      setError('Por favor, selecione seu nome');
+    if (!nickname.trim()) {
+      setError('Por favor, informe seu apelido');
       return;
     }
 
@@ -66,58 +21,59 @@ export default function GameConfirmation() {
     setSuccess('');
 
     try {
-      // 1. Verifica se o jogo existe e está agendado
-      const gameResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/games?id=eq.${gameId}&select=status`,
-        {
-          method: 'GET',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`
-          }
-        }
-      );
+      // 1. Verifica se o membro existe
+      const { data: member, error: memberError } = await supabase
+        .from('members')
+        .select('id')
+        .eq('nickname', nickname.trim())
+        .single();
 
-      if (!gameResponse.ok) {
-        throw new Error('Erro ao verificar jogo');
-      }
-
-      const gameData = await gameResponse.json();
-      console.log('Jogo:', gameData);
-
-      if (!gameData || !Array.isArray(gameData) || gameData.length === 0) {
-        setError('Jogo não encontrado');
+      if (memberError) {
+        console.error('Erro ao buscar membro:', memberError);
+        setError('Erro ao verificar apelido');
         return;
       }
 
-      const game = gameData[0];
+      if (!member) {
+        setError('Apelido não encontrado. Verifique se digitou corretamente.');
+        return;
+      }
+
+      // 2. Verifica se o jogo existe e está agendado
+      const { data: game, error: gameError } = await supabase
+        .from('games')
+        .select('status')
+        .eq('id', gameId)
+        .single();
+
+      if (gameError) {
+        console.error('Erro ao buscar jogo:', gameError);
+        setError('Erro ao verificar jogo');
+        return;
+      }
+
+      if (!game) {
+        setError('Jogo não encontrado');
+        return;
+      }
 
       if (game.status !== 'Agendado') {
         setError('Este jogo não está mais agendado');
         return;
       }
 
-      // 2. Atualiza ou cria a confirmação
-      const confirmResponse = await fetch(
-        `${SUPABASE_URL}/rest/v1/game_participants`,
-        {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'resolution=merge-duplicates'
-          },
-          body: JSON.stringify({
-            game_id: gameId,
-            member_id: memberId,
-            confirmed: willPlay
-          })
-        }
-      );
+      // 3. Registra a confirmação
+      const { error: confirmError } = await supabase
+        .from('game_participants')
+        .upsert({
+          game_id: gameId,
+          member_id: member.id,
+          confirmed: willPlay
+        });
 
-      if (!confirmResponse.ok) {
-        throw new Error('Erro ao confirmar presença');
+      if (confirmError) {
+        console.error('Erro ao confirmar:', confirmError);
+        throw confirmError;
       }
 
       setSuccess(willPlay ? 'Presença confirmada!' : 'Ausência registrada!');
@@ -151,21 +107,16 @@ export default function GameConfirmation() {
 
             <div className="mb-6">
               <label className="block text-gray-700 text-sm font-bold mb-2">
-                Selecione seu Nome
+                Seu Apelido
               </label>
-              <select
-                value={memberId}
-                onChange={(e) => setMemberId(e.target.value)}
+              <input
+                type="text"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="Digite seu apelido"
                 className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={loading}
-              >
-                <option value="">Selecione...</option>
-                {members.map(member => (
-                  <option key={member.id} value={member.id}>
-                    {member.nickname}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div className="flex gap-4">
