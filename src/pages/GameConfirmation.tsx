@@ -6,6 +6,8 @@ import Logo from '../components/Logo';
 interface Game {
   id: string;
   status: string;
+  date: string;
+  field: string;
 }
 
 export default function GameConfirmation() {
@@ -29,13 +31,14 @@ export default function GameConfirmation() {
     try {
       console.log('Checking game:', gameId);
       
-      const { data: game, error } = await supabase
+      const { data, error } = await supabase
         .from('games')
-        .select('id, status')
+        .select('id, status, date, field')
         .eq('id', gameId)
-        .maybeSingle();
+        .limit(1)
+        .single();
 
-      console.log('Response:', { game, error });
+      console.log('Response:', { data, error });
 
       if (error) {
         console.error('Error:', error);
@@ -44,19 +47,19 @@ export default function GameConfirmation() {
         return;
       }
 
-      if (!game) {
+      if (!data) {
         setError('Jogo não encontrado');
         setLoading(false);
         return;
       }
 
-      if (game.status !== 'Agendado') {
+      if (data.status !== 'Agendado') {
         setError('Este jogo não está agendado');
         setLoading(false);
         return;
       }
 
-      setGame(game);
+      setGame(data);
       setLoading(false);
     } catch (err) {
       console.error('Error:', err);
@@ -80,7 +83,7 @@ export default function GameConfirmation() {
         .select('id')
         .eq('nickname', nickname.trim())
         .eq('status', 'Ativo')
-        .maybeSingle();
+        .single();
 
       if (memberError) {
         console.error('Member error:', memberError);
@@ -122,8 +125,13 @@ export default function GameConfirmation() {
       
       {error ? (
         <div className="mt-4 text-red-600">{error}</div>
-      ) : (
+      ) : game ? (
         <div className="mt-8 w-full max-w-md">
+          <div className="mb-6 text-center">
+            <h2 className="text-xl font-bold mb-2">Confirmação de Presença</h2>
+            <p className="text-gray-600">Data: {new Date(game.date).toLocaleDateString()}</p>
+            <p className="text-gray-600">Local: {game.field}</p>
+          </div>
           <input
             type="text"
             placeholder="Digite seu apelido"
@@ -138,7 +146,7 @@ export default function GameConfirmation() {
             Confirmar Presença
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
