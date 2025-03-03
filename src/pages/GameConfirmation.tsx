@@ -29,19 +29,23 @@ export default function GameConfirmation() {
     }
 
     try {
-      console.log('Checking game:', gameId);
-      
+      // Primeiro testa a conexão
+      const isConnected = await testConnection();
+      if (!isConnected) {
+        setError('Erro de conexão com o servidor');
+        setLoading(false);
+        return;
+      }
+
+      // Busca o jogo
       const { data, error } = await supabase
         .from('games')
         .select('id, status, date, field')
         .eq('id', gameId)
-        .limit(1)
         .single();
 
-      console.log('Response:', { data, error });
-
       if (error) {
-        console.error('Error:', error);
+        console.error('Error fetching game:', error);
         setError('Erro ao carregar o jogo');
         setLoading(false);
         return;

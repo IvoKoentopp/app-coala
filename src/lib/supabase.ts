@@ -18,7 +18,11 @@ const initSupabase = () => {
         storageKey: 'coala-club-auth',
       },
       global: {
-        headers: { 'x-application-name': 'coala-club' },
+        headers: { 
+          'x-application-name': 'coala-club',
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
       },
     });
   }
@@ -31,7 +35,11 @@ const initSupabase = () => {
         storageKey: 'coala-club-auth',
       },
       global: {
-        headers: { 'x-application-name': 'coala-club' },
+        headers: { 
+          'x-application-name': 'coala-club',
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
       },
     });
   }
@@ -39,24 +47,26 @@ const initSupabase = () => {
   return supabaseInstance;
 };
 
+// Export the initialized instance
 export const supabase = initSupabase();
 
 // Test connection function with better error handling
 export const testConnection = async () => {
   try {
     const { data, error } = await supabase
-      .from('members')
+      .from('games')
       .select('count')
-      .limit(1);
+      .limit(1)
+      .single();
 
     if (error) {
-      console.error('Supabase connection error:', error);
+      console.error('Supabase connection test failed:', error);
       return false;
     }
 
     return true;
   } catch (err) {
-    console.error('Supabase connection error:', err);
+    console.error('Supabase connection test error:', err);
     return false;
   }
 };
