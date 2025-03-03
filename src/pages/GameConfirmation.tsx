@@ -27,12 +27,15 @@ export default function GameConfirmation() {
     }
 
     try {
+      console.log('Checking game:', gameId);
+      
       const { data: game, error } = await supabase
         .from('games')
         .select('id, status')
         .eq('id', gameId)
-        .limit(1)
-        .maybeSingle();
+        .single();
+
+      console.log('Response:', { game, error });
 
       if (error) {
         console.error('Error:', error);
