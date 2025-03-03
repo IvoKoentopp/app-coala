@@ -6,14 +6,12 @@ import MembersList from './pages/MembersList';
 import Games from './pages/Games';
 import CreateGame from './pages/CreateGame';
 import GameConfirmation from './pages/GameConfirmation';
-import GameTeams from './pages/GameTeams';
 import Layout from './components/Layout';
 import AdminPage from './pages/AdminPage';
 import EditMember from './pages/EditMember';
 import Dashboard from './pages/Dashboard';
 import RegistrationDashboard from './pages/RegistrationDashboard';
 import GamesDashboard from './pages/GamesDashboard';
-import PlayerPerformance from './pages/PlayerPerformance';
 import Settings from './pages/Settings';
 import Invitation from './pages/Invitation';
 import Statute from './pages/Statute';
@@ -60,14 +58,6 @@ function App() {
               }
             />
             <Route
-              path="/games/performance"
-              element={
-                <PrivateRoute>
-                  <PlayerPerformance />
-                </PrivateRoute>
-              }
-            />
-            <Route
               path="/members"
               element={
                 <PrivateRoute>
@@ -104,14 +94,6 @@ function App() {
               element={
                 <PrivateRoute>
                   <CreateGame />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/games/teams/:gameId"
-              element={
-                <PrivateRoute>
-                  <GameTeams />
                 </PrivateRoute>
               }
             />

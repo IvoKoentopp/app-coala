@@ -8,11 +8,14 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   build: {
+    sourcemap: true,
     rollupOptions: {
-      input: {
-        main: './index.html',
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          supabase: ['@supabase/supabase-js'],
+        },
       },
     },
   },
-  publicDir: 'public',
 });

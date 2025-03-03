@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
-import { Plus, Calendar, Users, Edit, X, Check, AlertTriangle, Trash2, UserCheck, UserX, UserMinus, Share2, ShieldCheck, MessageCircle } from 'lucide-react';
+import { Plus, Calendar, Users, Edit, X, Check, AlertTriangle, Trash2, UserCheck, UserX, UserMinus, Share2, FileText } from 'lucide-react';
 import { formatDate } from '../lib/date';
+import { config } from '../config/env';
 
 interface Member {
   id: string;
@@ -30,9 +31,6 @@ interface GameParticipant {
   confirmed: boolean | null;
 }
 
-// Add deployed site URL constant
-const SITE_URL = 'https://gleeful-boba-44f6c3.netlify.app';
-
 export default function Games() {
   const navigate = useNavigate();
   const [games, setGames] = useState<Game[]>([]);
@@ -54,7 +52,6 @@ export default function Games() {
     declined: [],
     pending: []
   });
-  const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
 
   useEffect(() => {
     checkAdminStatus();
@@ -97,8 +94,6 @@ export default function Games() {
 
   const fetchParticipants = async (gameId: string) => {
     try {
-      setIsLoadingParticipants(true);
-      
       const { data: game } = await supabase
         .from('games')
         .select('status')
@@ -144,8 +139,6 @@ export default function Games() {
     } catch (err) {
       console.error('Error fetching participants:', err);
       setError('Erro ao carregar participantes');
-    } finally {
-      setIsLoadingParticipants(false);
     }
   };
 
@@ -342,9 +335,68 @@ export default function Games() {
     }
   };
 
+  const handleGetGameReport = async (game: Game) => {
+    try {
+      // Buscar o telefone do admin
+      const { data: admin } = await supabase
+        .from('members')
+        .select('phone')
+        .eq('is_admin', true)
+        .single();
+
+      if (!admin?.phone) {
+        setError('Telefone do administrador não encontrado');
+        return;
+      }
+
+      // Buscar todos os participantes com seus status
+      const { data: participants } = await supabase
+        .from('game_participants')
+        .select(`
+          confirmed,
+          members (
+            nickname
+          )
+        `)
+        .eq('game_id', game.id);
+
+      if (!participants) {
+        setError('Erro ao buscar participantes');
+        return;
+      }
+
+      const confirmed = participants.filter(p => p.confirmed === true).map(p => p.members.nickname);
+      const declined = participants.filter(p => p.confirmed === false).map(p => p.members.nickname);
+      const pending = participants.filter(p => p.confirmed === null).map(p => p.members.nickname);
+
+      // Formatar a mensagem
+      const gameDate = formatDate(game.date);
+      const message = `📊 Relatório do Jogo - ${gameDate}\n` +
+        `🏟️ Local: ${game.field}\n\n` +
+        `✅ Confirmados (${confirmed.length}):\n${confirmed.join('\n') || 'Nenhum'}\n\n` +
+        `❌ Não Vão (${declined.length}):\n${declined.join('\n') || 'Nenhum'}\n\n` +
+        `⏳ Pendentes (${pending.length}):\n${pending.join('\n') || 'Nenhum'}`;
+
+      // Enviar mensagem para o admin
+      const phone = admin.phone.replace(/\D/g, '');
+      window.open(
+        `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+        '_blank',
+        'noopener,noreferrer'
+      );
+
+      setSuccess('Relatório enviado com sucesso!');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      console.error('Error sending game report:', err);
+      setError('Erro ao gerar relatório');
+    }
+  };
+
   const generateWhatsAppMessage = (game: Game) => {
     const gameDate = formatDate(game.date);
-    const message = `🎮 Confirmação de Jogo\n\n📅 Data: ${gameDate}\n🏟️ Local: ${game.field}\n\nPara confirmar sua presença, acesse:`;
+    const confirmationUrl = `${config.siteUrl}/game-confirmation/${game.id}`;
+    const message = `🎮 Confirmação de Jogo\n\n📅 Data: ${gameDate}\n🏟️ Local: ${game.field}\n\nPara confirmar sua presença, acesse: ${confirmationUrl}`;
     return encodeURIComponent(message);
   };
 
@@ -367,12 +419,11 @@ export default function Games() {
 
       if (participants && participants.length > 0) {
         const message = generateWhatsAppMessage(game);
-        const confirmationUrl = `${SITE_URL}/game-confirmation/${game.id}`;
         
-        // Open WhatsApp with the first pending participant that has a phone number
+        // Abrir WhatsApp com a mensagem para o primeiro participante
         const firstParticipant = participants[0];
-        const phone = firstParticipant.members.phone.replace(/\D/g, ''); // Remove non-digits
-        window.open(`https://wa.me/${phone}?text=${message} ${confirmationUrl}`, '_blank');
+        const phone = firstParticipant.members.phone.replace(/\D/g, '');
+        window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
 
         setSuccess('Link do WhatsApp gerado com sucesso!');
         setTimeout(() => setSuccess(null), 3000);
@@ -383,94 +434,6 @@ export default function Games() {
       console.error('Error generating WhatsApp link:', err);
       setError('Erro ao gerar link do WhatsApp');
     }
-  };
-
-  const handleShareParticipantsList = async (game: Game) => {
-    try {
-      setSuccess('Carregando participantes...');
-      
-      // Buscar participantes diretamente do banco de dados
-      const { data: participantsData, error } = await supabase
-        .from('game_participants')
-        .select(`
-          member_id,
-          members (
-            nickname
-          ),
-          confirmed
-        `)
-        .eq('game_id', game.id);
-
-      if (error) throw error;
-
-      if (!participantsData) {
-        throw new Error('Não foi possível carregar os participantes');
-      }
-
-      // Organizar participantes por status
-      const confirmedList = participantsData
-        .filter(p => p.confirmed === true)
-        .map(p => p.members.nickname);
-      
-      const declinedList = participantsData
-        .filter(p => p.confirmed === false)
-        .map(p => p.members.nickname);
-      
-      const pendingList = participantsData
-        .filter(p => p.confirmed === null)
-        .map(p => p.members.nickname);
-      
-      const gameDate = formatDate(game.date);
-      
-      // Criar a mensagem com a lista de participantes
-      let message = `*🎮 Lista de Participantes - ${gameDate} - ${game.field}*\n\n`;
-      
-      // Adicionar confirmados
-      message += `*✅ Confirmados (${confirmedList.length}):*\n`;
-      if (confirmedList.length > 0) {
-        confirmedList.forEach((nickname, index) => {
-          message += `${index + 1}. ${nickname}\n`;
-        });
-      } else {
-        message += "Ninguém confirmou ainda\n";
-      }
-      
-      // Adicionar recusados
-      message += `\n*❌ Não vão (${declinedList.length}):*\n`;
-      if (declinedList.length > 0) {
-        declinedList.forEach((nickname, index) => {
-          message += `${index + 1}. ${nickname}\n`;
-        });
-      } else {
-        message += "Ninguém recusou ainda\n";
-      }
-      
-      // Adicionar pendentes
-      message += `\n*⏳ Não informaram (${pendingList.length}):*\n`;
-      if (pendingList.length > 0) {
-        pendingList.forEach((nickname, index) => {
-          message += `${index + 1}. ${nickname}\n`;
-        });
-      } else {
-        message += "Todos já responderam\n";
-      }
-      
-      // Adicionar link para confirmação
-      message += `\n🔗 Link para confirmar: ${SITE_URL}/game-confirmation/${game.id}/`;
-      
-      // Abrir WhatsApp com a mensagem
-      window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-      
-      setSuccess('Lista de participantes compartilhada com sucesso!');
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      console.error('Error sharing participants list:', err);
-      setError('Erro ao compartilhar lista de participantes');
-    }
-  };
-
-  const handleFormTeams = (gameId: string) => {
-    navigate(`/games/teams/${gameId}`);
   };
 
   const getStatusColor = (status: string) => {
@@ -578,33 +541,20 @@ export default function Games() {
                   </button>
                   {isAdmin && (
                     <div className="flex items-center space-x-2">
-                      {game.status === 'Agendado' && (
-                        <>
-                          {game.participants.pending > 0 && (
-                            <button
-                              onClick={() => handleShareWhatsApp(game)}
-                              className="text-blue-600 hover:text-blue-900"
-                              title="Enviar confirmação via WhatsApp"
-                            >
-                              <Share2 className="w-5 h-5" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleShareParticipantsList(game)}
-                            className="text-green-600 hover:text-green-900"
-                            title="Compartilhar lista de participantes no WhatsApp"
-                          >
-                            <MessageCircle className="w-5 h-5" />
-                          </button>
-                        </>
-                      )}
-                      {game.status !== 'Cancelado' && (
+                      <button
+                        onClick={() => handleGetGameReport(game)}
+                        className="text-blue-600 hover:text-blue-900"
+                        title="Ver relatório de confirmações"
+                      >
+                        <FileText className="w-5 h-5" />
+                      </button>
+                      {game.status === 'Agendado' && game.participants.pending > 0 && (
                         <button
-                          onClick={() => handleFormTeams(game.id)}
-                          className="text-purple-600 hover:text-purple-900"
-                          title="Formar Times"
+                          onClick={() => handleShareWhatsApp(game)}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="Enviar confirmação via WhatsApp"
                         >
-                          <ShieldCheck className="w-5 h-5" />
+                          <Share2 className="w-5 h-5" />
                         </button>
                       )}
                       <button
@@ -748,146 +698,98 @@ export default function Games() {
               <h2 className="text-xl font-bold">
                 Participantes - {formatDate(selectedGame.date)}
               </h2>
-              <div className="flex items-center space-x-3">
-                {selectedGame.status !== 'Cancelado' && (
-                  <button
-                    onClick={() => {
-                      setShowParticipantsModal(false);
-                      handleFormTeams(selectedGame.id);
-                    }}
-                    className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
-                  >
-                    <ShieldCheck className="w-4 h-4 mr-2" />
-                    Formar Times
-                  </button>
-                )}
-                {isAdmin && selectedGame.status === 'Agendado' && (
-                  <button
-                    onClick={() => {
-                      setShowParticipantsModal(false);
-                      handleShareParticipantsList(selectedGame);
-                    }}
-                    className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                  >
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                    Compartilhar Lista
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowParticipantsModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
+              <button
+                onClick={() => setShowParticipantsModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
             </div>
 
-            {isLoadingParticipants ? (
-              <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-4 border-green-500 border-t-transparent"></div>
-                <span className="ml-3 text-gray-600">Carregando participantes...</span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Vai Jogar */}
+              <div className="bg-green-50 rounded-lg p-4">
+                <div className="flex items-center mb-4">
+                  <UserCheck className="w-5 h-5 text-green-600 mr-2" />
+                  <h3 className="font-semibold text-green-800">
+                    Vai Jogar ({participants.confirmed.length})
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {participants.confirmed.map((member) => (
+                    <div key={member.member_id} className="flex items-center justify-between bg-white p-2 rounded">
+                      <span>{member.nickname}</span>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleUpdateParticipant(member.member_id, null)}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Vai Jogar */}
-                <div className="bg-green-50 rounded-lg p-4">
-                  <div className="flex items-center mb-4">
-                    <UserCheck className="w-5 h-5 text-green-600 mr-2" />
-                    <h3 className="font-semibold text-green-800">
-                      Vai Jogar ({participants.confirmed.length})
-                    </h3>
-                  </div>
-                  <div className="space-y-2">
-                    {participants.confirmed.map((member) => (
-                      <div key={member.member_id} className="flex items-center justify-between bg-white p-2 rounded">
-                        <span>{member.nickname}</span>
-                        {isAdmin && (
+
+              {/* Não Vai Jogar */}
+              <div className="bg-red-50 rounded-lg p-4">
+                <div className="flex items-center mb-4">
+                  <UserX className="w-5 h-5 text-red-600 mr-2" />
+                  <h3 className="font-semibold text-red-800">
+                    Não Vai Jogar ({participants.declined.length})
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {participants.declined.map((member) => (
+                    <div key={member.member_id} className="flex items-center justify-between bg-white p-2 rounded">
+                      <span>{member.nickname}</span>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleUpdateParticipant(member.member_id, null)}
+                          className="text-gray-500 hover:text-gray-700"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Não Informou */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center mb-4">
+                  <UserMinus className="w-5 h-5 text-gray-600 mr-2" />
+                  <h3 className="font-semibold text-gray-800">
+                    Não Informou ({participants.pending.length})
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {participants.pending.map((member) => (
+                    <div key={member.member_id} className="flex items-center justify-between bg-white p-2 rounded">
+                      <span>{member.nickname}</span>
+                      {isAdmin && (
+                        <div className="flex space-x-2">
                           <button
-                            onClick={() => handleUpdateParticipant(member.member_id, null)}
-                            className="text-gray-500 hover:text-gray-700"
+                            onClick={() => handleUpdateParticipant(member.member_id, true)}
+                            className="text-green-600 hover:text-green-800"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleUpdateParticipant(member.member_id, false)}
+                            className="text-red-600 hover:text-red-800"
                           >
                             <X className="w-4 h-4" />
                           </button>
-                        )}
-                      </div>
-                    ))}
-                    {participants.confirmed.length === 0 && (
-                      <div className="text-center py-4 text-gray-500">
-                        Nenhum jogador confirmado
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Não Vai Jogar */}
-                <div className="bg-red-50 rounded-lg p-4">
-                  <div className="flex items-center mb-4">
-                    <UserX className="w-5 h-5 text-red-600 mr-2" />
-                    <h3 className="font-semibold text-red-800">
-                      Não Vai Jogar ({participants.declined.length})
-                    </h3>
-                  </div>
-                  <div className="space-y-2">
-                    {participants.declined.map((member) => (
-                      <div key={member.member_id} className="flex items-center justify-between bg-white p-2 rounded">
-                        <span>{member.nickname}</span>
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleUpdateParticipant(member.member_id, null)}
-                            className="text-gray-500 hover:text-gray-700"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    {participants.declined.length === 0 && (
-                      <div className="text-center py-4 text-gray-500">
-                        Nenhum jogador recusou
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Não Informou */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-center mb-4">
-                    <UserMinus className="w-5 h-5 text-gray-600 mr-2" />
-                    <h3 className="font-semibold text-gray-800">
-                      Não Informou ({participants.pending.length})
-                    </h3>
-                  </div>
-                  <div className="space-y-2">
-                    {participants.pending.map((member) => (
-                      <div key={member.member_id} className="flex items-center justify-between bg-white p-2 rounded">
-                        <span>{member.nickname}</span>
-                        {isAdmin && (
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleUpdateParticipant(member.member_id, true)}
-                              className="text-green-600 hover:text-green-800"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleUpdateParticipant(member.member_id, false)}
-                              className="text-red-600 hover:text-red-800"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {participants.pending.length === 0 && (
-                      <div className="text-center py-4 text-gray-500">
-                        Todos já responderam
-                      </div>
-                    )}
-                  </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}

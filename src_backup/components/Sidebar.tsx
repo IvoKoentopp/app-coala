@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Users, Calendar, Wallet, LogOut, ChevronDown, ChevronRight, 
   UserCog, User, PlusCircle, List, Book, Music, Mail, Settings, 
-  BarChart, DollarSign, PieChart, FileText, CreditCard, Award
+  BarChart, DollarSign, PieChart, FileText, CreditCard
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -38,7 +38,6 @@ export default function Sidebar() {
 
   const gamesSubmenu = [
     { path: '/games/stats', icon: BarChart, label: 'Painel' },
-    { path: '/games/performance', icon: Award, label: 'Performance' },
     { path: '/games/create', icon: PlusCircle, label: 'Criar' },
     { path: '/games', icon: List, label: 'Listagem' },
   ];

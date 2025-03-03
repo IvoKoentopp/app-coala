@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Trash2, Edit, Plus, Phone } from 'lucide-react';
+import { Trash2, Edit, Plus, Phone, User, Calendar, Tag, Users, Award, CheckCircle } from 'lucide-react';
 import { formatDate } from '../lib/date';
 
 interface Member {
@@ -27,11 +27,19 @@ export default function MembersList() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const navigate = useNavigate();
 
   useEffect(() => {
     checkAdminStatus();
     fetchMembers();
+
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const checkAdminStatus = async () => {
@@ -113,16 +121,17 @@ export default function MembersList() {
 
   return (
     <div className="min-h-screen bg-green-50 py-8 px-4">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-full mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Lista de Sócios</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Lista de Sócios</h1>
           {isAdmin && (
             <button
               onClick={() => navigate('/register')}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 inline-flex items-center"
+              className="px-3 py-1 md:px-4 md:py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 inline-flex items-center text-sm md:text-base"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Sócio
+              <Plus className="w-4 h-4 mr-1 md:mr-2" />
+              <span className="hidden sm:inline">Novo Sócio</span>
+              <span className="sm:hidden">Novo</span>
             </button>
           )}
         </div>
@@ -133,124 +142,232 @@ export default function MembersList() {
           </div>
         )}
 
-        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full table-fixed divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="w-[8%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Foto
-                  </th>
-                  <th className="w-[15%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Nome
-                  </th>
-                  <th className="w-[10%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Data de Nasc.
-                  </th>
-                  <th className="w-[10%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Apelido
-                  </th>
-                  <th className="w-[10%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Categoria
-                  </th>
-                  <th className="w-[10%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Padrinho
-                  </th>
-                  <th className="w-[8%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="w-[12%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Data Cadastro
-                  </th>
-                  <th className="w-[8%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contato
-                  </th>
-                  {(isAdmin || currentUserId) && (
-                    <th className="w-[9%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Ações
-                    </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {members.map((member) => (
-                  <tr key={member.id}>
-                    <td className="px-3 py-4">
-                      <div 
-                        onClick={() => handleViewProfile(member)}
-                        className="cursor-pointer transition-transform hover:scale-105"
-                      >
-                        {member.photo_url ? (
-                          <img
-                            src={member.photo_url}
-                            alt={member.name}
-                            className="h-10 w-10 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                            <span className="text-gray-500 text-sm">
-                              {member.nickname.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                        )}
+        {/* Mobile Card View */}
+        {isMobile && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {members.map((member) => (
+              <div 
+                key={member.id} 
+                className="bg-white rounded-lg shadow-md overflow-hidden"
+                onClick={() => handleViewProfile(member)}
+              >
+                <div className="p-4">
+                  <div className="flex items-center mb-4">
+                    {member.photo_url ? (
+                      <img
+                        src={member.photo_url}
+                        alt={member.name}
+                        className="h-14 w-14 rounded-full object-cover mr-3"
+                      />
+                    ) : (
+                      <div className="h-14 w-14 rounded-full bg-gray-200 flex items-center justify-center mr-3">
+                        <span className="text-gray-500 text-lg">
+                          {member.nickname.charAt(0).toUpperCase()}
+                        </span>
                       </div>
-                    </td>
-                    <td className="px-3 py-4">{member.name}</td>
-                    <td className="px-3 py-4">{formatDate(member.birth_date)}</td>
-                    <td className="px-3 py-4">{member.nickname}</td>
-                    <td className="px-3 py-4">{member.category}</td>
-                    <td className="px-3 py-4">{member.sponsor_nickname || '-'}</td>
-                    <td className="px-3 py-4">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                    )}
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{member.name}</h3>
+                      <p className="text-sm text-gray-600">{member.nickname}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center">
+                      <Calendar className="w-4 h-4 text-gray-500 mr-2" />
+                      <span>{formatDate(member.birth_date) || 'Não informado'}</span>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <Tag className="w-4 h-4 text-gray-500 mr-2" />
+                      <span>{member.category}</span>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <Users className="w-4 h-4 text-gray-500 mr-2" />
+                      <span>{member.sponsor_nickname || 'Sem padrinho'}</span>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <CheckCircle className="w-4 h-4 text-gray-500 mr-2" />
+                      <span className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         member.status === 'Ativo' ? 'bg-green-100 text-green-800' :
                         member.status === 'Inativo' ? 'bg-gray-100 text-gray-800' :
                         'bg-yellow-100 text-yellow-800'
                       }`}>
                         {member.status}
                       </span>
-                    </td>
-                    <td className="px-3 py-4">{formatDate(member.start_month)}</td>
-                    <td className="px-3 py-4">
-                      {member.phone ? (
+                    </div>
+                    
+                    {member.phone && (
+                      <div className="flex items-center">
+                        <Phone className="w-4 h-4 text-gray-500 mr-2" />
                         <a
                           href={`tel:${member.phone}`}
-                          className="text-green-600 hover:text-green-900 flex items-center"
+                          className="text-green-600"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <Phone className="w-4 h-4 mr-1" />
                           {member.phone}
                         </a>
-                      ) : (
-                        <span className="text-gray-400">Não informado</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {(isAdmin || currentUserId) && (
+                    <div className="mt-4 flex justify-end space-x-2">
+                      {canEditMember(member) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/members/edit/${member.id}`);
+                          }}
+                          className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
                       )}
-                    </td>
+                      {isAdmin && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(member.id);
+                          }}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-full"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Desktop Table View */}
+        {!isMobile && (
+          <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Foto
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Nome
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Data de Nascimento
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Apelido
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Categoria
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Padrinho
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Cadastro
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Contato
+                    </th>
                     {(isAdmin || currentUserId) && (
-                      <td className="px-3 py-4 text-sm text-gray-500">
-                        <div className="flex space-x-2">
-                          {canEditMember(member) && (
-                            <button
-                              onClick={() => navigate(`/members/edit/${member.id}`)}
-                              className="text-indigo-600 hover:text-indigo-900"
-                            >
-                              <Edit className="w-5 h-5" />
-                            </button>
-                          )}
-                          {isAdmin && (
-                            <button
-                              onClick={() => handleDelete(member.id)}
-                              className="text-red-600 hover:text-red-900"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Ações
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {members.map((member) => (
+                    <tr key={member.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div 
+                          onClick={() => handleViewProfile(member)}
+                          className="cursor-pointer transition-transform hover:scale-105"
+                        >
+                          {member.photo_url ? (
+                            <img
+                              src={member.photo_url}
+                              alt={member.name}
+                              className="h-10 w-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                              <span className="text-gray-500 text-sm">
+                                {member.nickname.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
                           )}
                         </div>
                       </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <td className="px-4 py-4 whitespace-nowrap">{member.name}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">{formatDate(member.birth_date) || '-'}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">{member.nickname}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">{member.category}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">{member.sponsor_nickname || '-'}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          member.status === 'Ativo' ? 'bg-green-100 text-green-800' :
+                          member.status === 'Inativo' ? 'bg-gray-100 text-gray-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {member.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">{formatDate(member.start_month)}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        {member.phone ? (
+                          <a
+                            href={`tel:${member.phone}`}
+                            className="text-green-600 hover:text-green-900 flex items-center"
+                          >
+                            <Phone className="w-4 h-4 mr-1" />
+                            {member.phone}
+                          </a>
+                        ) : (
+                          <span className="text-gray-400">Não informado</span>
+                        )}
+                      </td>
+                      {(isAdmin || currentUserId) && (
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                          <div className="flex justify-end space-x-2">
+                            {canEditMember(member) && (
+                              <button
+                                onClick={() => navigate(`/members/edit/${member.id}`)}
+                                className="text-indigo-600 hover:text-indigo-900"
+                                title="Editar"
+                              >
+                                <Edit className="w-5 h-5" />
+                              </button>
+                            )}
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDelete(member.id)}
+                                className="text-red-600 hover:text-red-900"
+                                title="Excluir"
+                              >
+                                <Trash2 className="w-5 h-5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
