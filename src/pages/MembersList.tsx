@@ -70,21 +70,37 @@ export default function MembersList() {
       // Primeiro, vamos buscar os membros
       const { data: membersData, error: membersError } = await supabase
         .from('members')
-        .select(`
-          *,
-          profiles:user_id (
-            email
-          )
-        `)
+        .select('*')
         .order('name');
       
       if (membersError) throw membersError;
       
       if (membersData) {
-        setMembers(membersData.map(member => ({
+        // Agora vamos buscar os emails dos usuários
+        const userIds = membersData.map(member => member.user_id).filter(Boolean);
+        
+        const { data: usersData, error: usersError } = await supabase
+          .from('auth_user_data')
+          .select('id, email')
+          .in('id', userIds);
+          
+        if (usersError) {
+          console.error('Error fetching users:', usersError);
+        }
+        
+        // Criar um mapa de user_id para email
+        const userEmailMap = new Map();
+        usersData?.forEach(user => {
+          userEmailMap.set(user.id, user.email);
+        });
+        
+        // Combinar os dados
+        const membersWithEmail = membersData.map(member => ({
           ...member,
-          users: member.profiles ? { email: member.profiles.email } : null
-        })));
+          users: member.user_id ? { email: userEmailMap.get(member.user_id) || null } : null
+        }));
+        
+        setMembers(membersWithEmail);
       }
     } catch (err) {
       console.error('Error fetching members:', err);
