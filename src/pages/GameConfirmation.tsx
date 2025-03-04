@@ -30,19 +30,37 @@ export default function GameConfirmation() {
   useEffect(() => {
     const loadGame = async () => {
       try {
-        if (!gameId) return;
+        if (!gameId) {
+          console.error('Game ID não fornecido');
+          setError('ID do jogo não fornecido');
+          return;
+        }
 
+        console.log('Buscando jogo:', gameId);
         const { data, error } = await supabaseAnon
           .from('games')
           .select('id, status, date, time, location')
           .eq('id', gameId)
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Erro Supabase:', error);
+          if (error.code === 'PGRST116') {
+            setError('Jogo não encontrado');
+          } else if (error.code === '42501') {
+            setError('Sem permissão para ver este jogo');
+          } else {
+            setError(`Erro ao carregar jogo: ${error.message}`);
+          }
+          return;
+        }
+
+        console.log('Dados do jogo:', data);
         if (!data) {
           setError('Jogo não encontrado');
           return;
         }
+
         if (data.status !== 'Agendado') {
           setError('Este jogo não está mais agendado');
           return;
@@ -51,7 +69,7 @@ export default function GameConfirmation() {
         setGame(data);
       } catch (err) {
         console.error('Erro ao carregar jogo:', err);
-        setError('Erro ao carregar detalhes do jogo');
+        setError('Erro inesperado ao carregar detalhes do jogo');
       }
     };
 
@@ -75,20 +93,32 @@ export default function GameConfirmation() {
 
     try {
       // 1. Busca o membro pelo apelido
+      console.log('Buscando membro:', nickname.trim());
       const { data: member, error: memberError } = await supabaseAnon
         .from('members')
         .select('id, nickname')
         .eq('nickname', nickname.trim())
         .maybeSingle();
 
-      if (memberError) throw memberError;
+      if (memberError) {
+        console.error('Erro ao buscar membro:', memberError);
+        throw memberError;
+      }
       
       if (!member) {
         setError('Apelido não encontrado. Verifique se digitou corretamente.');
         return;
       }
 
+      console.log('Membro encontrado:', member);
+
       // 2. Registra a confirmação
+      console.log('Registrando confirmação:', {
+        game_id: gameId,
+        member_id: member.id,
+        confirmed: willPlay
+      });
+
       const { error: confirmError } = await supabaseAnon
         .from('game_participants')
         .upsert({
@@ -99,7 +129,10 @@ export default function GameConfirmation() {
           onConflict: 'game_id,member_id'
         });
 
-      if (confirmError) throw confirmError;
+      if (confirmError) {
+        console.error('Erro ao confirmar:', confirmError);
+        throw confirmError;
+      }
 
       setSuccess(willPlay ? 'Presença confirmada!' : 'Ausência registrada!');
 
@@ -112,8 +145,10 @@ export default function GameConfirmation() {
       console.error('Erro:', err);
       const error = err as PostgrestError;
       
-      if (error?.code === '42501') { // Erro de permissão
+      if (error?.code === '42501') {
         setError('Não foi possível confirmar sua presença. O jogo pode não estar mais disponível para confirmação.');
+      } else if (error?.message) {
+        setError(`Erro ao processar sua confirmação: ${error.message}`);
       } else {
         setError('Erro ao processar sua confirmação. Por favor, tente novamente.');
       }
