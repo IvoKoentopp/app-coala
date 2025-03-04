@@ -74,6 +74,9 @@ export default function MembersList() {
       if (membersError) throw membersError;
       
       if (membersData) {
+        // Verificar se algum membro tem user_id
+        console.log('Members with user_id:', membersData.filter(m => m.user_id));
+
         // Buscar os emails usando a função RPC
         const { data: emailsData, error: emailsError } = await supabase
           .rpc('get_member_emails');
@@ -81,6 +84,9 @@ export default function MembersList() {
         if (emailsError) {
           console.error('Error fetching member emails:', emailsError);
         }
+
+        // Verificar os emails retornados
+        console.log('Emails data:', emailsData);
 
         // Criar um mapa de user_id -> email
         const emailMap = new Map();
@@ -90,11 +96,17 @@ export default function MembersList() {
           });
         }
 
+        // Verificar o mapa de emails
+        console.log('Email map:', Object.fromEntries(emailMap));
+
         // Adicionar os emails aos membros
         const membersWithEmail = membersData.map(member => ({
           ...member,
           email: member.user_id ? emailMap.get(member.user_id) || null : null
         }));
+        
+        // Verificar os membros com email
+        console.log('Members with email:', membersWithEmail);
         
         setMembers(membersWithEmail);
       }
