@@ -18,6 +18,7 @@ interface Member {
   photo_url: string | null;
   phone: string | null;
   is_admin: boolean;
+  email: string | null;
 }
 
 export default function MembersList() {
@@ -273,6 +274,11 @@ export default function MembersList() {
                       </span>
                     </div>
                     
+                    <div className="flex items-center">
+                      <User className="w-4 h-4 text-gray-500 mr-2" />
+                      <span>{member.email || 'Não informado'}</span>
+                    </div>
+                    
                     {member.phone && (
                       <div className="flex items-center">
                         <Phone className="w-4 h-4 text-gray-500 mr-2" />
@@ -353,6 +359,9 @@ export default function MembersList() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Contato
                     </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Email
+                    </th>
                     {(isAdmin || currentUserId) && (
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Ações
@@ -411,6 +420,7 @@ export default function MembersList() {
                           <span className="text-gray-400">Não informado</span>
                         )}
                       </td>
+                      <td className="px-4 py-4 whitespace-nowrap">{member.email || 'Não informado'}</td>
                       {(isAdmin || currentUserId) && (
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                           <div className="flex justify-end space-x-2">
