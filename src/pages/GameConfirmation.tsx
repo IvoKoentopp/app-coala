@@ -7,8 +7,9 @@ import { PostgrestError } from '@supabase/supabase-js';
 interface Game {
   id: string;
   status: string;
-  data_hora: string;
-  local: string;
+  // Vamos descobrir os nomes corretos das colunas
+  date_time?: string;
+  location?: string;
 }
 
 interface Member {
@@ -35,9 +36,10 @@ export default function GameConfirmation() {
         }
 
         console.log('Buscando jogo:', gameId);
+        // Primeiro vamos buscar só id e status para ver se funciona
         const { data, error } = await supabaseAnon
           .from('games')
-          .select('id, status, data_hora, local')
+          .select('*') // Buscar todas as colunas para ver a estrutura
           .eq('id', gameId)
           .single();
 
@@ -53,7 +55,9 @@ export default function GameConfirmation() {
           return;
         }
 
-        console.log('Dados do jogo:', data);
+        // Log para ver a estrutura completa do objeto
+        console.log('Estrutura completa do jogo:', data);
+
         if (!data) {
           setError('Jogo não encontrado');
           return;
@@ -173,12 +177,10 @@ export default function GameConfirmation() {
 
         {game && (
           <div className="mb-6 text-center">
-            <p className="text-gray-600">
-              Data/Hora: {new Date(game.data_hora).toLocaleString()}
-            </p>
-            <p className="text-gray-600">
-              Local: {game.local}
-            </p>
+            {/* Vamos mostrar os dados brutos por enquanto */}
+            <pre className="text-sm text-gray-600 whitespace-pre-wrap">
+              {JSON.stringify(game, null, 2)}
+            </pre>
           </div>
         )}
 
