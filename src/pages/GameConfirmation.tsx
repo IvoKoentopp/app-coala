@@ -7,9 +7,8 @@ import { PostgrestError } from '@supabase/supabase-js';
 interface Game {
   id: string;
   status: string;
-  date: string;
-  time: string;
-  location: string;
+  data_hora: string;
+  local: string;
 }
 
 interface Member {
@@ -26,7 +25,6 @@ export default function GameConfirmation() {
   const [loading, setLoading] = useState(false);
   const [game, setGame] = useState<Game | null>(null);
 
-  // Carrega os detalhes do jogo
   useEffect(() => {
     const loadGame = async () => {
       try {
@@ -39,7 +37,7 @@ export default function GameConfirmation() {
         console.log('Buscando jogo:', gameId);
         const { data, error } = await supabaseAnon
           .from('games')
-          .select('id, status, date, time, location')
+          .select('id, status, data_hora, local')
           .eq('id', gameId)
           .single();
 
@@ -92,8 +90,6 @@ export default function GameConfirmation() {
     setSuccess('');
 
     try {
-      // 1. Busca o membro pelo apelido
-      console.log('Buscando membro:', nickname.trim());
       const { data: member, error: memberError } = await supabaseAnon
         .from('members')
         .select('id, nickname')
@@ -112,13 +108,6 @@ export default function GameConfirmation() {
 
       console.log('Membro encontrado:', member);
 
-      // 2. Registra a confirmação
-      console.log('Registrando confirmação:', {
-        game_id: gameId,
-        member_id: member.id,
-        confirmed: willPlay
-      });
-
       const { error: confirmError } = await supabaseAnon
         .from('game_participants')
         .upsert({
@@ -136,7 +125,6 @@ export default function GameConfirmation() {
 
       setSuccess(willPlay ? 'Presença confirmada!' : 'Ausência registrada!');
 
-      // Redireciona após 2 segundos
       setTimeout(() => {
         navigate('/');
       }, 2000);
@@ -186,13 +174,10 @@ export default function GameConfirmation() {
         {game && (
           <div className="mb-6 text-center">
             <p className="text-gray-600">
-              Data: {new Date(game.date).toLocaleDateString()}
+              Data/Hora: {new Date(game.data_hora).toLocaleString()}
             </p>
             <p className="text-gray-600">
-              Horário: {game.time}
-            </p>
-            <p className="text-gray-600">
-              Local: {game.location}
+              Local: {game.local}
             </p>
           </div>
         )}
