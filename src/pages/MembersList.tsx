@@ -74,47 +74,26 @@ export default function MembersList() {
       if (membersError) throw membersError;
       
       if (membersData) {
-        // Obter o usuário atual e seu email
-        const { data: { session } } = await supabase.auth.getSession();
-        const currentUserEmail = session?.user?.email;
-        const currentUserId = session?.user?.id;
+        // Buscar os emails usando a função RPC
+        const { data: emailsData, error: emailsError } = await supabase
+          .rpc('get_member_emails');
 
-        // Para cada membro, vamos tentar obter o email
-        const membersWithEmail = await Promise.all(membersData.map(async (member) => {
-          // Se for o usuário atual, usar o email da sessão
-          if (member.user_id === currentUserId) {
-            return {
-              ...member,
-              email: currentUserEmail || null
-            };
-          }
-          
-          // Para outros usuários, tentar buscar da tabela auth_user_data
-          if (member.user_id) {
-            try {
-              const { data: userData } = await supabase
-                .from('auth_user_data')
-                .select('email')
-                .eq('id', member.user_id)
-                .maybeSingle();
+        if (emailsError) {
+          console.error('Error fetching member emails:', emailsError);
+        }
 
-              return {
-                ...member,
-                email: userData?.email || null
-              };
-            } catch (error) {
-              console.error('Error fetching user email:', error);
-              return {
-                ...member,
-                email: null
-              };
-            }
-          }
-          
-          return {
-            ...member,
-            email: null
-          };
+        // Criar um mapa de user_id -> email
+        const emailMap = new Map();
+        if (emailsData) {
+          emailsData.forEach((item: { user_id: string; email: string }) => {
+            emailMap.set(item.user_id, item.email);
+          });
+        }
+
+        // Adicionar os emails aos membros
+        const membersWithEmail = membersData.map(member => ({
+          ...member,
+          email: member.user_id ? emailMap.get(member.user_id) || null : null
         }));
         
         setMembers(membersWithEmail);
