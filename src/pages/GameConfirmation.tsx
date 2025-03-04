@@ -19,6 +19,13 @@ interface Member {
   nickname: string;
 }
 
+interface GameParticipant {
+  member: {
+    nickname: string;
+  };
+  confirmed: boolean;
+}
+
 export default function GameConfirmation() {
   const { gameId } = useParams();
   const navigate = useNavigate();
@@ -76,6 +83,60 @@ export default function GameConfirmation() {
     loadGame();
   }, [gameId]);
 
+  const shareOnWhatsApp = async () => {
+    if (!game) return;
+
+    try {
+      // Buscar lista de participantes
+      const { data: participants, error: participantsError } = await supabaseAnon
+        .from('game_participants')
+        .select(`
+          member:member_id(nickname),
+          confirmed
+        `)
+        .eq('game_id', gameId);
+
+      if (participantsError) {
+        console.error('Erro ao buscar participantes:', participantsError);
+        throw participantsError;
+      }
+
+      // Separar confirmados e não confirmados
+      const confirmed = participants
+        ?.filter((p: GameParticipant) => p.confirmed)
+        .map((p: GameParticipant) => p.member.nickname)
+        .sort() || [];
+      
+      const notConfirmed = participants
+        ?.filter((p: GameParticipant) => !p.confirmed)
+        .map((p: GameParticipant) => p.member.nickname)
+        .sort() || [];
+
+      // Formatar a mensagem
+      const date = new Date(game.date).toLocaleDateString();
+      let message = `⚽ *Futebol ${date}*\n`;
+      message += `📍 ${game.field}\n\n`;
+      
+      message += `✅ *Confirmados (${confirmed.length})*:\n`;
+      confirmed.forEach(name => message += `- ${name}\n`);
+      
+      if (notConfirmed.length > 0) {
+        message += `\n❌ *Não vão (${notConfirmed.length})*:\n`;
+        notConfirmed.forEach(name => message += `- ${name}\n`);
+      }
+
+      // Codificar a mensagem para URL
+      const encodedMessage = encodeURIComponent(message);
+      
+      // Redirecionar para o WhatsApp
+      window.location.href = `https://wa.me/?text=${encodedMessage}`;
+
+    } catch (err) {
+      console.error('Erro ao compartilhar:', err);
+      navigate('/');
+    }
+  };
+
   const handleConfirmation = async (willPlay: boolean) => {
     if (!nickname.trim()) {
       setError('Por favor, informe seu apelido');
@@ -127,9 +188,10 @@ export default function GameConfirmation() {
 
       setSuccess(willPlay ? 'Presença confirmada!' : 'Ausência registrada!');
 
+      // Compartilhar no WhatsApp após 1 segundo
       setTimeout(() => {
-        navigate('/');
-      }, 2000);
+        shareOnWhatsApp();
+      }, 1000);
 
     } catch (err) {
       console.error('Erro:', err);
@@ -189,7 +251,7 @@ export default function GameConfirmation() {
             <div className="mb-4 text-green-600 font-medium">{success}</div>
             <p className="text-gray-600">Obrigado por confirmar!</p>
             <p className="text-sm text-gray-500 mt-2">
-              Redirecionando para a página inicial...
+              Abrindo WhatsApp para compartilhar...
             </p>
           </div>
         ) : (
