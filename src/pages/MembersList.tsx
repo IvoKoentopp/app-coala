@@ -66,19 +66,25 @@ export default function MembersList() {
   const fetchMembers = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Primeiro, vamos buscar os membros
+      const { data: membersData, error: membersError } = await supabase
         .from('members')
         .select(`
           *,
-          users:user_id (
+          profiles:user_id (
             email
           )
         `)
         .order('name');
       
-      if (error) throw error;
-      if (data) {
-        setMembers(data);
+      if (membersError) throw membersError;
+      
+      if (membersData) {
+        setMembers(membersData.map(member => ({
+          ...member,
+          users: member.profiles ? { email: member.profiles.email } : null
+        })));
       }
     } catch (err) {
       console.error('Error fetching members:', err);
