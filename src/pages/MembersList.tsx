@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Trash2, Edit, Plus, Phone, User, Calendar, Tag, Users, Award, CheckCircle, Printer } from 'lucide-react';
+import { Trash2, Edit, Plus, Phone, User, Calendar, Tag, Users, Award, CheckCircle } from 'lucide-react';
 import { formatDate } from '../lib/date';
 
 interface Member {
@@ -111,78 +111,6 @@ export default function MembersList() {
     navigate(`/members/edit/${member.id}?view=true`);
   };
 
-  const handlePrint = () => {
-    // Create a new window for printing
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    // Generate the HTML content for printing
-    const printContent = `
-      <html>
-        <head>
-          <title>Lista de Sócios - Coala</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              margin: 20px;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-top: 20px;
-            }
-            th, td {
-              border: 1px solid #ddd;
-              padding: 8px;
-              text-align: left;
-            }
-            th {
-              background-color: #f0f9f0;
-              color: #333;
-            }
-            tr:nth-child(even) {
-              background-color: #f9f9f9;
-            }
-            h1 {
-              color: #333;
-              text-align: center;
-            }
-          </style>
-        </head>
-        <body>
-          <h1>Lista de Sócios - Coala</h1>
-          <table>
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Apelido</th>
-                <th>Email</th>
-                <th>Data de Aniversário</th>
-                <th>Telefone</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${members.map(member => `
-                <tr>
-                  <td>${member.name}</td>
-                  <td>${member.nickname}</td>
-                  <td>${member.email || ''}</td>
-                  <td>${formatDate(member.birth_date) || ''}</td>
-                  <td>${member.phone || ''}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </body>
-      </html>
-    `;
-
-    // Write the content to the new window and print
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.print();
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -196,26 +124,16 @@ export default function MembersList() {
       <div className="max-w-full mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Lista de Sócios</h1>
-          <div className="flex gap-2">
+          {isAdmin && (
             <button
-              onClick={handlePrint}
-              className="px-3 py-1 md:px-4 md:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 inline-flex items-center text-sm md:text-base"
+              onClick={() => navigate('/register')}
+              className="px-3 py-1 md:px-4 md:py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 inline-flex items-center text-sm md:text-base"
             >
-              <Printer className="w-4 h-4 mr-1 md:mr-2" />
-              <span className="hidden sm:inline">Imprimir Lista</span>
-              <span className="sm:hidden">Imprimir</span>
+              <Plus className="w-4 h-4 mr-1 md:mr-2" />
+              <span className="hidden sm:inline">Novo Sócio</span>
+              <span className="sm:hidden">Novo</span>
             </button>
-            {isAdmin && (
-              <button
-                onClick={() => navigate('/register')}
-                className="px-3 py-1 md:px-4 md:py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 inline-flex items-center text-sm md:text-base"
-              >
-                <Plus className="w-4 h-4 mr-1 md:mr-2" />
-                <span className="hidden sm:inline">Novo Sócio</span>
-                <span className="sm:hidden">Novo</span>
-              </button>
-            )}
-          </div>
+          )}
         </div>
 
         {error && (
