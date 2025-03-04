@@ -74,14 +74,33 @@ export default function MembersList() {
       if (membersError) throw membersError;
       
       if (membersData) {
-        // Para cada membro com user_id, vamos buscar o email
+        // Obter o usuário atual e seu email
+        const { data: { session } } = await supabase.auth.getSession();
+        const currentUserEmail = session?.user?.email;
+        const currentUserId = session?.user?.id;
+
+        // Para cada membro, vamos tentar obter o email
         const membersWithEmail = await Promise.all(membersData.map(async (member) => {
+          // Se for o usuário atual, usar o email da sessão
+          if (member.user_id === currentUserId) {
+            return {
+              ...member,
+              email: currentUserEmail || null
+            };
+          }
+          
+          // Para outros usuários, tentar buscar da tabela auth_user_data
           if (member.user_id) {
             try {
-              const { data: { user }, error } = await supabase.auth.admin.getUserById(member.user_id);
+              const { data: userData } = await supabase
+                .from('auth_user_data')
+                .select('email')
+                .eq('id', member.user_id)
+                .maybeSingle();
+
               return {
                 ...member,
-                email: user?.email || null
+                email: userData?.email || null
               };
             } catch (error) {
               console.error('Error fetching user email:', error);
@@ -91,6 +110,7 @@ export default function MembersList() {
               };
             }
           }
+          
           return {
             ...member,
             email: null
