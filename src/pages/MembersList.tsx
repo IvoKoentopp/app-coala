@@ -18,7 +18,9 @@ interface Member {
   photo_url: string | null;
   phone: string | null;
   is_admin: boolean;
-  email: string | null;
+  users: {
+    email: string;
+  } | null;
 }
 
 export default function MembersList() {
@@ -66,7 +68,12 @@ export default function MembersList() {
       setLoading(true);
       const { data, error } = await supabase
         .from('members')
-        .select('*')
+        .select(`
+          *,
+          users:user_id (
+            email
+          )
+        `)
         .order('name');
       
       if (error) throw error;
@@ -121,7 +128,7 @@ export default function MembersList() {
     const membersToPrint = members.map(member => ({
       name: member.name,
       nickname: member.nickname,
-      email: member.email,
+      email: member.users?.email || 'Não informado',
       birth_date: formatDate(member.birth_date),
       phone: member.phone || 'Não informado'
     }));
@@ -160,7 +167,7 @@ export default function MembersList() {
                 <tr>
                   <td>${member.name}</td>
                   <td>${member.nickname}</td>
-                  <td>${member.email || 'Não informado'}</td>
+                  <td>${member.email}</td>
                   <td>${member.birth_date}</td>
                   <td>${member.phone}</td>
                 </tr>
@@ -276,7 +283,7 @@ export default function MembersList() {
                     
                     <div className="flex items-center">
                       <User className="w-4 h-4 text-gray-500 mr-2" />
-                      <span>{member.email || 'Não informado'}</span>
+                      <span>{member.users?.email || 'Não informado'}</span>
                     </div>
                     
                     {member.phone && (
@@ -420,7 +427,7 @@ export default function MembersList() {
                           <span className="text-gray-400">Não informado</span>
                         )}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap">{member.email || 'Não informado'}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">{member.users?.email || 'Não informado'}</td>
                       {(isAdmin || currentUserId) && (
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                           <div className="flex justify-end space-x-2">
