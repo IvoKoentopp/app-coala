@@ -18,7 +18,6 @@ interface Member {
   photo_url: string | null;
   phone: string | null;
   is_admin: boolean;
-  email: string | null;
 }
 
 export default function MembersList() {
@@ -64,51 +63,14 @@ export default function MembersList() {
   const fetchMembers = async () => {
     try {
       setLoading(true);
-      
-      // Primeiro, vamos buscar os membros
-      const { data: membersData, error: membersError } = await supabase
+      const { data, error } = await supabase
         .from('members')
         .select('*')
         .order('name');
       
-      if (membersError) throw membersError;
-      
-      if (membersData) {
-        // Verificar se algum membro tem user_id
-        console.log('Members with user_id:', membersData.filter(m => m.user_id));
-
-        // Buscar os emails usando a função RPC
-        const { data: emailsData, error: emailsError } = await supabase
-          .rpc('get_member_emails');
-
-        if (emailsError) {
-          console.error('Error fetching member emails:', emailsError);
-        }
-
-        // Verificar os emails retornados
-        console.log('Emails data:', emailsData);
-
-        // Criar um mapa de user_id -> email
-        const emailMap = new Map();
-        if (emailsData) {
-          emailsData.forEach((item: { user_id: string; email: string }) => {
-            emailMap.set(item.user_id, item.email);
-          });
-        }
-
-        // Verificar o mapa de emails
-        console.log('Email map:', Object.fromEntries(emailMap));
-
-        // Adicionar os emails aos membros
-        const membersWithEmail = membersData.map(member => ({
-          ...member,
-          email: member.user_id ? emailMap.get(member.user_id) || null : null
-        }));
-        
-        // Verificar os membros com email
-        console.log('Members with email:', membersWithEmail);
-        
-        setMembers(membersWithEmail);
+      if (error) throw error;
+      if (data) {
+        setMembers(data);
       }
     } catch (err) {
       console.error('Error fetching members:', err);
@@ -154,29 +116,36 @@ export default function MembersList() {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    // Filter and map only the required fields
-    const membersToPrint = members.map(member => ({
-      name: member.name,
-      nickname: member.nickname,
-      email: member.email || 'Não informado',
-      birth_date: formatDate(member.birth_date),
-      phone: member.phone || 'Não informado'
-    }));
-
-    // Create the HTML content
+    // Generate the HTML content for printing
     const printContent = `
-      <!DOCTYPE html>
       <html>
         <head>
           <title>Lista de Sócios - Coala</title>
           <style>
-            body { font-family: Arial, sans-serif; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f5f5f5; }
-            h1 { color: #333; }
-            @media print {
-              h1 { margin-bottom: 20px; }
+            body {
+              font-family: Arial, sans-serif;
+              margin: 20px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 20px;
+            }
+            th, td {
+              border: 1px solid #ddd;
+              padding: 8px;
+              text-align: left;
+            }
+            th {
+              background-color: #f0f9f0;
+              color: #333;
+            }
+            tr:nth-child(even) {
+              background-color: #f9f9f9;
+            }
+            h1 {
+              color: #333;
+              text-align: center;
             }
           </style>
         </head>
@@ -193,13 +162,13 @@ export default function MembersList() {
               </tr>
             </thead>
             <tbody>
-              ${membersToPrint.map(member => `
+              ${members.map(member => `
                 <tr>
                   <td>${member.name}</td>
                   <td>${member.nickname}</td>
-                  <td>${member.email}</td>
-                  <td>${member.birth_date}</td>
-                  <td>${member.phone}</td>
+                  <td>${member.email || ''}</td>
+                  <td>${formatDate(member.birth_date) || ''}</td>
+                  <td>${member.phone || ''}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -208,6 +177,7 @@ export default function MembersList() {
       </html>
     `;
 
+    // Write the content to the new window and print
     printWindow.document.write(printContent);
     printWindow.document.close();
     printWindow.print();
@@ -311,11 +281,6 @@ export default function MembersList() {
                       </span>
                     </div>
                     
-                    <div className="flex items-center">
-                      <User className="w-4 h-4 text-gray-500 mr-2" />
-                      <span>{member.email || 'Não informado'}</span>
-                    </div>
-                    
                     {member.phone && (
                       <div className="flex items-center">
                         <Phone className="w-4 h-4 text-gray-500 mr-2" />
@@ -396,9 +361,6 @@ export default function MembersList() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Contato
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Email
-                    </th>
                     {(isAdmin || currentUserId) && (
                       <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Ações
@@ -457,7 +419,6 @@ export default function MembersList() {
                           <span className="text-gray-400">Não informado</span>
                         )}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap">{member.email || 'Não informado'}</td>
                       {(isAdmin || currentUserId) && (
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                           <div className="flex justify-end space-x-2">
