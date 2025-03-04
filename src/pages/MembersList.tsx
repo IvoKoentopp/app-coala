@@ -18,9 +18,7 @@ interface Member {
   photo_url: string | null;
   phone: string | null;
   is_admin: boolean;
-  users: {
-    email: string;
-  } | null;
+  email: string | null;
 }
 
 export default function MembersList() {
@@ -76,28 +74,27 @@ export default function MembersList() {
       if (membersError) throw membersError;
       
       if (membersData) {
-        // Agora vamos buscar os emails dos usuários
-        const userIds = membersData.map(member => member.user_id).filter(Boolean);
-        
-        const { data: usersData, error: usersError } = await supabase
-          .from('auth_user_data')
-          .select('id, email')
-          .in('id', userIds);
-          
-        if (usersError) {
-          console.error('Error fetching users:', usersError);
-        }
-        
-        // Criar um mapa de user_id para email
-        const userEmailMap = new Map();
-        usersData?.forEach(user => {
-          userEmailMap.set(user.id, user.email);
-        });
-        
-        // Combinar os dados
-        const membersWithEmail = membersData.map(member => ({
-          ...member,
-          users: member.user_id ? { email: userEmailMap.get(member.user_id) || null } : null
+        // Para cada membro com user_id, vamos buscar o email
+        const membersWithEmail = await Promise.all(membersData.map(async (member) => {
+          if (member.user_id) {
+            try {
+              const { data: { user }, error } = await supabase.auth.admin.getUserById(member.user_id);
+              return {
+                ...member,
+                email: user?.email || null
+              };
+            } catch (error) {
+              console.error('Error fetching user email:', error);
+              return {
+                ...member,
+                email: null
+              };
+            }
+          }
+          return {
+            ...member,
+            email: null
+          };
         }));
         
         setMembers(membersWithEmail);
@@ -150,7 +147,7 @@ export default function MembersList() {
     const membersToPrint = members.map(member => ({
       name: member.name,
       nickname: member.nickname,
-      email: member.users?.email || 'Não informado',
+      email: member.email || 'Não informado',
       birth_date: formatDate(member.birth_date),
       phone: member.phone || 'Não informado'
     }));
@@ -305,7 +302,7 @@ export default function MembersList() {
                     
                     <div className="flex items-center">
                       <User className="w-4 h-4 text-gray-500 mr-2" />
-                      <span>{member.users?.email || 'Não informado'}</span>
+                      <span>{member.email || 'Não informado'}</span>
                     </div>
                     
                     {member.phone && (
@@ -449,7 +446,7 @@ export default function MembersList() {
                           <span className="text-gray-400">Não informado</span>
                         )}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap">{member.users?.email || 'Não informado'}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">{member.email || 'Não informado'}</td>
                       {(isAdmin || currentUserId) && (
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                           <div className="flex justify-end space-x-2">
