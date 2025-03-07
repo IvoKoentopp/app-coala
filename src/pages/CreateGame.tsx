@@ -76,7 +76,6 @@ export default function CreateGame() {
       const participations = members.map(member => ({
         game_id: game.id,
         member_id: member.id,
-        club_id: clubId,
         confirmed: null // null represents "Não Informou"
       }));
 

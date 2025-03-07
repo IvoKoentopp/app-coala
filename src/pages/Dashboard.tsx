@@ -268,40 +268,45 @@ export default function Dashboard() {
     if (!userClubId) return;
 
     try {
-      const { data: topPlayers, error: topPlayersError } = await supabase
+      const { data: members, error } = await supabase
         .from('members')
         .select(`
           id,
-          name,
           nickname,
           birth_date,
-          created_at,
-          game_participants (count)
+          start_month,
+          game_participations (count)
         `)
         .eq('club_id', userClubId)
         .eq('status', 'Ativo');
 
-      if (topPlayersError) throw topPlayersError;
+      if (error) throw error;
 
-      // Calculate score based on games played, membership time, and age
-      const playersWithScore = topPlayers?.map(member => {
-        const birthDate = new Date(member.birth_date);
-        const createdAt = new Date(member.created_at);
+      if (members) {
         const now = new Date();
+        const topPlayers = members
+          .map(member => {
+            const birthDate = new Date(member.birth_date);
+            const startDate = new Date(member.start_month);
+            const age = differenceInYears(now, birthDate);
+            const membershipTime = differenceInDays(now, startDate);
 
-        const age = Math.floor((now.getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-        const membershipTime = Math.floor((now.getTime() - createdAt.getTime()) / (24 * 60 * 60 * 1000));
-        const score = (member.game_participants.count * 100000 + membershipTime * 10 + age) / 1000;
+            const score = (member.game_participations.count * 100000 + membershipTime * 10 + age) / 1000;
 
-        return {
-          ...member,
-          score,
-          gamesPlayed: member.game_participants.count,
-          membershipDays: membershipTime
-        };
-      }) || [];
+            return {
+              nickname: member.nickname,
+              gamesPlayed: member.game_participations.count,
+              participationRate: 0,
+              score,
+              membershipTime,
+              age
+            };
+          })
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 3);
 
-      setTopPlayers(playersWithScore);
+        setTopPlayers(topPlayers);
+      }
     } catch (err) {
       console.error('Error fetching top players:', err);
     }
@@ -483,7 +488,7 @@ export default function Dashboard() {
                       <div className="text-sm text-gray-500">
                         <p>{player.gamesPlayed} jogos ({player.participationRate.toFixed(1)}%)</p>
                         <p className="text-xs">
-                          {player.membershipDays} dias de clube • {player.age} anos
+                          {player.membershipTime} dias de clube • {player.age} anos
                         </p>
                       </div>
                     </div>
