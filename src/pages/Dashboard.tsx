@@ -48,6 +48,7 @@ interface OverdueFee {
 }
 
 export default function Dashboard() {
+  const [userClubId, setUserClubId] = useState<string | null>(null);
   const [stats, setStats] = useState<MemberStats>({
     total: 0,
     byCategory: {
@@ -66,14 +67,41 @@ export default function Dashboard() {
   const [hoveredSponsor, setHoveredSponsor] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchStats();
-    fetchSponsorStats();
-    fetchTopPlayers();
-    fetchCurrentMonthBirthdays();
-    fetchOverdueFees();
+    checkUserClub();
   }, []);
 
+  useEffect(() => {
+    if (userClubId) {
+      fetchStats();
+      fetchSponsorStats();
+      fetchTopPlayers();
+      fetchCurrentMonthBirthdays();
+      fetchOverdueFees();
+    }
+  }, [userClubId]);
+
+  const checkUserClub = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user.id) {
+        const { data: member } = await supabase
+          .from('members')
+          .select('club_id')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (member) {
+          setUserClubId(member.club_id);
+        }
+      }
+    } catch (err) {
+      console.error('Error checking club:', err);
+    }
+  };
+
   const fetchOverdueFees = async () => {
+    if (!userClubId) return;
+
     try {
       const { data, error } = await supabase
         .from('monthly_fees')
@@ -85,6 +113,7 @@ export default function Dashboard() {
             nickname
           )
         `)
+        .eq('club_id', userClubId)
         .is('payment_date', null)
         .lte('due_date', new Date().toISOString().split('T')[0])
         .order('due_date');
@@ -109,10 +138,13 @@ export default function Dashboard() {
   };
 
   const fetchStats = async () => {
+    if (!userClubId) return;
+
     try {
       const { data: members, error } = await supabase
         .from('members')
-        .select('category, status');
+        .select('category, status')
+        .eq('club_id', userClubId);
 
       if (error) throw error;
 
@@ -148,6 +180,8 @@ export default function Dashboard() {
   };
 
   const fetchCurrentMonthBirthdays = async () => {
+    if (!userClubId) return;
+
     try {
       const currentDate = new Date();
       const currentMonth = currentDate.getMonth() + 1;
@@ -156,6 +190,7 @@ export default function Dashboard() {
       const { data: members, error } = await supabase
         .from('members')
         .select('id, name, nickname, birth_date, photo_url')
+        .eq('club_id', userClubId)
         .eq('status', 'Ativo');
 
       if (error) throw error;
@@ -193,10 +228,13 @@ export default function Dashboard() {
   };
 
   const fetchSponsorStats = async () => {
+    if (!userClubId) return;
+
     try {
       const { data, error } = await supabase
         .from('members')
         .select('nickname, sponsor_nickname')
+        .eq('club_id', userClubId)
         .not('sponsor_nickname', 'is', null)
         .order('sponsor_nickname');
 
@@ -227,57 +265,38 @@ export default function Dashboard() {
   };
 
   const fetchTopPlayers = async () => {
+    if (!userClubId) return;
+
     try {
-      const currentYear = new Date().getFullYear();
-      const startDate = new Date(currentYear, 0, 1).toISOString();
-      const endDate = new Date(currentYear, 11, 31).toISOString();
+      const { data: members, error } = await supabase
+        .from('members')
+        .select(`
+          id,
+          nickname,
+          birth_date,
+          start_month,
+          game_participations (count)
+        `)
+        .eq('club_id', userClubId)
+        .eq('status', 'Ativo');
 
-      const { data: games, error: gamesError } = await supabase
-        .from('games')
-        .select('*, game_participants(*, members(nickname, birth_date, start_month))')
-        .eq('status', 'Realizado')
-        .gte('date', startDate)
-        .lte('date', endDate);
+      if (error) throw error;
 
-      if (gamesError) throw gamesError;
-
-      if (games) {
-        const playerStats: { [key: string]: any } = {};
-        const totalGames = games.length;
-
-        games.forEach(game => {
-          if (game.game_participants) {
-            const confirmed = game.game_participants.filter(p => p.confirmed === true);
-            confirmed.forEach(p => {
-              if (p.members?.nickname) {
-                if (!playerStats[p.members.nickname]) {
-                  playerStats[p.members.nickname] = {
-                    gamesPlayed: 0,
-                    birth_date: p.members.birth_date,
-                    start_month: p.members.start_month
-                  };
-                }
-                playerStats[p.members.nickname].gamesPlayed++;
-              }
-            });
-          }
-        });
-
+      if (members) {
         const now = new Date();
-        const topPlayers = Object.entries(playerStats)
-          .map(([nickname, data]) => {
-            const participationRate = (data.gamesPlayed / totalGames) * 100;
-            const birthDate = new Date(data.birth_date);
-            const startDate = new Date(data.start_month);
+        const topPlayers = members
+          .map(member => {
+            const birthDate = new Date(member.birth_date);
+            const startDate = new Date(member.start_month);
             const age = differenceInYears(now, birthDate);
             const membershipTime = differenceInDays(now, startDate);
 
-            const score = (participationRate * 100000 + membershipTime * 10 + age) / 1000;
+            const score = (member.game_participations.count * 100000 + membershipTime * 10 + age) / 1000;
 
             return {
-              nickname,
-              gamesPlayed: data.gamesPlayed,
-              participationRate,
+              nickname: member.nickname,
+              gamesPlayed: member.game_participations.count,
+              participationRate: 0,
               score,
               membershipTime,
               age

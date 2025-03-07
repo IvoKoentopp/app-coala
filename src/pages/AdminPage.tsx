@@ -10,6 +10,7 @@ interface Member {
 }
 
 export default function AdminPage() {
+  const [userClubId, setUserClubId] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,24 +20,32 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    checkAdminStatus();
-    fetchMembers();
+    checkUserClub();
   }, []);
 
-  const checkAdminStatus = async () => {
+  useEffect(() => {
+    if (userClubId) {
+      fetchMembers();
+    }
+  }, [userClubId]);
+
+  const checkUserClub = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user.id) {
         const { data: member } = await supabase
           .from('members')
-          .select('is_admin')
+          .select('is_admin, club_id')
           .eq('user_id', session.user.id)
           .single();
 
-        setIsAdmin(member?.is_admin || false);
+        if (member) {
+          setIsAdmin(member.is_admin || false);
+          setUserClubId(member.club_id);
+        }
       }
     } catch (err) {
-      console.error('Error checking admin status:', err);
+      console.error('Error checking club:', err);
     }
   };
 
@@ -46,6 +55,7 @@ export default function AdminPage() {
       const { data, error } = await supabase
         .from('members')
         .select('id, name, nickname, is_admin')
+        .eq('club_id', userClubId)
         .order('name');
 
       if (error) throw error;
@@ -59,13 +69,14 @@ export default function AdminPage() {
   };
 
   const handlePromoteToAdmin = async () => {
-    if (!selectedMemberId) return;
+    if (!selectedMemberId || !userClubId) return;
 
     try {
       const { error } = await supabase
         .from('members')
         .update({ is_admin: true })
-        .eq('id', selectedMemberId);
+        .eq('id', selectedMemberId)
+        .eq('club_id', userClubId);
 
       if (error) throw error;
 
@@ -83,11 +94,14 @@ export default function AdminPage() {
   };
 
   const handleRemoveAdmin = async (memberId: string) => {
+    if (!userClubId) return;
+
     try {
       const { error } = await supabase
         .from('members')
         .update({ is_admin: false })
-        .eq('id', memberId);
+        .eq('id', memberId)
+        .eq('club_id', userClubId);
 
       if (error) throw error;
 
@@ -106,6 +120,14 @@ export default function AdminPage() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-gray-600">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (!userClubId) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-gray-600">Clube não encontrado</div>
       </div>
     );
   }

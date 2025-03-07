@@ -1,36 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 import { APP_NAME } from '../config/constants';
 import { Menu } from 'lucide-react';
 import { useSidebar } from '../contexts/SidebarContext';
+import { supabase } from '../lib/supabase';
 
-interface Member {
-  nickname: string;
-  club: {
-    name: string;
-    logo_url: string | null;
-  };
+interface ClubInfo {
+  id: string;
+  name: string;
+  logo_url: string | null;
 }
 
 export default function Header() {
   const navigate = useNavigate();
-  const [member, setMember] = useState<Member | null>(null);
   const { toggleSidebar } = useSidebar();
+  const [nickname, setNickname] = useState<string>('');
+  const [club, setClub] = useState<ClubInfo | null>(null);
 
   useEffect(() => {
-    fetchMember();
+    fetchUserInfo();
   }, []);
 
-  const fetchMember = async () => {
+  const fetchUserInfo = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user.id) {
-        const { data, error } = await supabase
+        const { data: member, error } = await supabase
           .from('members')
           .select(`
             nickname,
-            club:clubs (
+            clubs (
+              id,
               name,
               logo_url
             )
@@ -39,12 +39,13 @@ export default function Header() {
           .single();
 
         if (error) throw error;
-        if (data) {
-          setMember(data);
+        if (member) {
+          setNickname(member.nickname);
+          setClub(member.clubs);
         }
       }
     } catch (err) {
-      console.error('Error fetching member:', err);
+      console.error('Error fetching user info:', err);
     }
   };
 
@@ -57,10 +58,10 @@ export default function Header() {
               className="flex items-center cursor-pointer" 
               onClick={() => navigate('/')}
             >
-              {member?.club?.logo_url ? (
+              {club?.logo_url ? (
                 <img
-                  src={member.club.logo_url}
-                  alt={member.club.name || APP_NAME}
+                  src={club.logo_url}
+                  alt={club.name || APP_NAME}
                   className="h-10 w-10 object-contain"
                 />
               ) : (
@@ -71,7 +72,7 @@ export default function Header() {
                 </div>
               )}
               <h1 className="ml-3 text-xl font-bold text-gray-900">
-                {member?.club?.name || APP_NAME}
+                {club?.name || APP_NAME}
               </h1>
             </div>
             <button
@@ -82,9 +83,9 @@ export default function Header() {
               <span className="ml-1 text-sm font-medium">Menu</span>
             </button>
           </div>
-          {member && (
+          {nickname && (
             <div className="text-gray-600">
-              Olá, <span className="font-medium text-green-600">{member.nickname}</span>, seja bem-vindo!
+              Olá, <span className="font-medium text-green-600">{nickname}</span>, seja bem-vindo!
             </div>
           )}
         </div>
