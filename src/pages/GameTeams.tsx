@@ -329,7 +329,12 @@ export default function GameTeams() {
     setUnassigned([]);
   };
 
-  const handleOpenStatModal = (participant: GameParticipant) => {
+  const handleMemberClick = (participant: GameParticipant) => {
+    if (!gameStarted) {
+      setError('Você precisa iniciar a partida antes de registrar estatísticas');
+      return;
+    }
+    
     setSelectedMember(participant);
     setShowStatModal(true);
   };
@@ -353,15 +358,16 @@ export default function GameTeams() {
     try {
       if (!selectedMember || !gameId) return;
 
-      // If game hasn't started yet, start it automatically when recording stats
-      if (!gameStarted && game?.status === 'Agendado') {
-        await handleStartGame();
+      // Não permite registrar estatísticas se o jogo não começou
+      if (!gameStarted) {
+        setError('Você precisa iniciar a partida antes de registrar estatísticas');
+        return;
       }
 
       // Get the game to ensure we have the club_id
       const { data: gameData, error: gameError } = await supabase
         .from('games')
-        .select('club_id')
+        .select('club_id, status')
         .eq('id', gameId)
         .single();
 
@@ -371,6 +377,12 @@ export default function GameTeams() {
       }
 
       console.log('Game data:', gameData);
+
+      // Não permite registrar estatísticas se o jogo não começou
+      if (gameData.status === 'Agendado') {
+        setError('Você precisa iniciar a partida antes de registrar estatísticas');
+        return;
+      }
 
       const newStat = {
         game_id: gameId,
@@ -690,7 +702,7 @@ export default function GameTeams() {
               >
                 <div 
                   className="flex items-center cursor-pointer overflow-hidden"
-                  onClick={() => handleOpenStatModal(participant)}
+                  onClick={() => gameStarted ? handleMemberClick(participant) : null}
                 >
                   {participant.members.photo_url ? (
                     <img
@@ -757,7 +769,7 @@ export default function GameTeams() {
               >
                 <div 
                   className="flex items-center cursor-pointer overflow-hidden"
-                  onClick={() => handleOpenStatModal(participant)}
+                  onClick={() => gameStarted ? handleMemberClick(participant) : null}
                 >
                   {participant.members.photo_url ? (
                     <img
