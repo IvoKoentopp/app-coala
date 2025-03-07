@@ -202,6 +202,8 @@ export default function GameTeams() {
 
       if (data) {
         setStatistics(data);
+        // Forçar recálculo do placar após atualizar as estatísticas
+        calculateScores();
       }
     } catch (err) {
       console.error('Error fetching statistics:', err);
@@ -414,8 +416,9 @@ export default function GameTeams() {
       setSelectedAssistMember(null);
       setShowStatModal(false);
       
-      // Refresh statistics
+      // Refresh statistics and force score update
       await fetchStatistics();
+      calculateScores();
     } catch (err) {
       console.error('Error saving statistic:', err);
       setError('Erro ao salvar estatística');
