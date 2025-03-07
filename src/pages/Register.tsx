@@ -37,28 +37,45 @@ export default function Register() {
   const [clubId, setClubId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchClubId();
-    fetchMembers();
-  }, []);
+    if (formData.accessKey) {
+      fetchClubId();
+    }
+  }, [formData.accessKey]);
+
+  useEffect(() => {
+    if (clubId) {
+      fetchMembers();
+    }
+  }, [clubId]);
 
   const fetchClubId = async () => {
+    if (!formData.accessKey) return;
+
     try {
-      const { data, error } = await supabase
-        .from('clubs')
-        .select('id')
+      const { data: settings, error: settingsError } = await supabase
+        .from('club_settings')
+        .select('club_id, value')
+        .eq('key', 'access_key')
         .single();
 
-      if (error) throw error;
-      if (data) {
-        setClubId(data.id);
+      if (settingsError) throw settingsError;
+      
+      if (settings && settings.value === formData.accessKey) {
+        setClubId(settings.club_id);
+      } else {
+        setError('Chave de acesso inválida');
+        setClubId(null);
       }
     } catch (err) {
       console.error('Error fetching club ID:', err);
       setError('Erro ao carregar dados do clube');
+      setClubId(null);
     }
   };
 
   const fetchMembers = async () => {
+    if (!clubId) return;
+
     try {
       setLoading(true);
       setSponsorsError('');
@@ -67,6 +84,7 @@ export default function Register() {
         .from('members')
         .select('nickname')
         .eq('status', 'Ativo')
+        .eq('club_id', clubId)
         .order('nickname');
         
       if (error) throw error;

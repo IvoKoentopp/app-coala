@@ -18,6 +18,7 @@ interface Member {
   photo_url: string | null;
   phone: string | null;
   is_admin: boolean;
+  club_id: string;
 }
 
 export default function MembersList() {
@@ -28,11 +29,11 @@ export default function MembersList() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [userClubId, setUserClubId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    checkAdminStatus();
-    fetchMembers();
+    checkAdminAndClub();
 
     const handleResize = () => {
       setIsMobile(window.innerWidth < 1024);
@@ -42,30 +43,43 @@ export default function MembersList() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const checkAdminStatus = async () => {
+  useEffect(() => {
+    if (userClubId) {
+      fetchMembers();
+    }
+  }, [userClubId]);
+
+  const checkAdminAndClub = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user.id) {
         setCurrentUserId(session.user.id);
         const { data: member } = await supabase
           .from('members')
-          .select('is_admin')
+          .select('is_admin, club_id')
           .eq('user_id', session.user.id)
           .single();
 
-        setIsAdmin(member?.is_admin || false);
+        if (member) {
+          setIsAdmin(member.is_admin || false);
+          setUserClubId(member.club_id);
+        }
       }
     } catch (err) {
       console.error('Error checking admin status:', err);
+      setError('Erro ao verificar permissões');
     }
   };
 
   const fetchMembers = async () => {
+    if (!userClubId) return;
+    
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('members')
         .select('*')
+        .eq('club_id', userClubId)
         .order('name');
       
       if (error) throw error;
@@ -81,6 +95,8 @@ export default function MembersList() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!userClubId) return;
+
     try {
       if (!isAdmin) {
         setError('Apenas administradores podem excluir sócios');
@@ -91,7 +107,8 @@ export default function MembersList() {
         const { error } = await supabase
           .from('members')
           .delete()
-          .eq('id', id);
+          .eq('id', id)
+          .eq('club_id', userClubId);
         
         if (error) throw error;
         
@@ -115,6 +132,14 @@ export default function MembersList() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-gray-600">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (!userClubId) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-gray-600">Clube não encontrado</div>
       </div>
     );
   }

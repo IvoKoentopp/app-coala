@@ -84,30 +84,60 @@ export default function RegistrationDashboard() {
   const [hoveredSponsor, setHoveredSponsor] = useState<string | null>(null);
   const [hoveredTimeGroup, setHoveredTimeGroup] = useState<string | null>(null);
   const [hoveredAgeGroup, setHoveredAgeGroup] = useState<string | null>(null);
+  const [userClubId, setUserClubId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchStats();
-    fetchBirthdays();
-
-    // Atualizar a lista de aniversariantes no primeiro dia de cada mês
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(now.getDate() + 1);
-    
-    if (tomorrow.getDate() === 1) {
-      const timeUntilMidnight = tomorrow.getTime() - now.getTime();
-      setTimeout(() => {
-        fetchBirthdays();
-      }, timeUntilMidnight);
-    }
+    checkUserClub();
   }, []);
 
+  useEffect(() => {
+    if (userClubId) {
+      fetchStats();
+      fetchBirthdays();
+
+      // Atualizar a lista de aniversariantes no primeiro dia de cada mês
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(now.getDate() + 1);
+      
+      if (tomorrow.getDate() === 1) {
+        const timeUntilMidnight = tomorrow.getTime() - now.getTime();
+        setTimeout(() => {
+          fetchBirthdays();
+        }, timeUntilMidnight);
+      }
+    }
+  }, [userClubId]);
+
+  const checkUserClub = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user.id) {
+        const { data: member } = await supabase
+          .from('members')
+          .select('club_id')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (member) {
+          setUserClubId(member.club_id);
+        }
+      }
+    } catch (err) {
+      console.error('Error checking club:', err);
+      setError('Erro ao verificar clube');
+    }
+  };
+
   const fetchBirthdays = async () => {
+    if (!userClubId) return;
+
     try {
       const { data: members, error } = await supabase
         .from('members')
         .select('id, name, nickname, birth_date, photo_url')
-        .eq('status', 'Ativo');
+        .eq('status', 'Ativo')
+        .eq('club_id', userClubId);
 
       if (error) throw error;
 
@@ -211,11 +241,14 @@ export default function RegistrationDashboard() {
   };
 
   const fetchStats = async () => {
+    if (!userClubId) return;
+
     try {
       setLoading(true);
       const { data: members, error } = await supabase
         .from('members')
-        .select('*');
+        .select('*')
+        .eq('club_id', userClubId);
 
       if (error) throw error;
 
@@ -364,6 +397,14 @@ export default function RegistrationDashboard() {
       setLoading(false);
     }
   };
+
+  if (!userClubId) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-gray-600">Clube não encontrado</div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -602,31 +643,29 @@ export default function RegistrationDashboard() {
             <div className="space-y-4">
               {stats.topSponsors.map((sponsor, index) => (
                 <div key={sponsor.nickname} className="bg-gray-50 rounded-lg p-3">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center relative">
-                      <span className="w-6 h-6 rounded-full bg-yellow-100 text-yellow-800 flex items-center justify-center text-sm font-bold">
-                        {index + 1}
-                      </span>
-                      <span
-                        className="ml-2 font-medium cursor-help"
-                        onMouseEnter={() => setHoveredSponsor(sponsor.nickname)}
-                        onMouseLeave={() => setHoveredSponsor(null)}
-                      >
-                        {sponsor.nickname}
-                        {hoveredSponsor === sponsor.nickname && (
-                          <div className="absolute left-0 top-full mt-2 p-3 bg-white rounded-lg shadow-lg z-10 w-48">
-                            <p className="text-sm font-semibold mb-2">Afilhados:</p>
-                            <ul className="text-sm text-gray-600 space-y-1">
-                              {sponsor.sponsored.map(nickname => (
-                                <li key={nickname}>{nickname}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </span>
-                    </div>
-                    <span className="text-sm text-gray-500">{sponsor.count} afilhados</span>
+                  <div className="flex items-center relative">
+                    <span className="w-6 h-6 rounded-full bg-yellow-100 text-yellow-800 flex items-center justify-center text-sm font-bold">
+                      {index + 1}
+                    </span>
+                    <span
+                      className="ml-2 font-medium cursor-help"
+                      onMouseEnter={() => setHoveredSponsor(sponsor.nickname)}
+                      onMouseLeave={() => setHoveredSponsor(null)}
+                    >
+                      {sponsor.nickname}
+                      {hoveredSponsor === sponsor.nickname && (
+                        <div className="absolute left-0 top-full mt-2 p-3 bg-white rounded-lg shadow-lg z-10 w-48">
+                          <p className="text-sm font-semibold mb-2">Afilhados:</p>
+                          <ul className="text-sm text-gray-600 space-y-1">
+                            {sponsor.sponsored.map(nickname => (
+                              <li key={nickname}>{nickname}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </span>
                   </div>
+                  <span className="text-sm text-gray-500">{sponsor.count} afilhados</span>
                 </div>
               ))}
             </div>
