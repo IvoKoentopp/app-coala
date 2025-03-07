@@ -1,4 +1,5 @@
 {
+  // Configuração do Vercel para App Coala
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
@@ -9,5 +10,9 @@
   "env": {
     "VITE_SUPABASE_URL": "@vite_supabase_url",
     "VITE_SUPABASE_ANON_KEY": "@vite_supabase_anon_key"
+  },
+  "github": {
+    "enabled": true,
+    "autoAlias": true
   }
 }
