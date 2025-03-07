@@ -7,6 +7,7 @@ interface Member {
   id: string;
   name: string;
   nickname: string;
+  club_id: string;
 }
 
 interface MonthlyFee {
@@ -18,11 +19,13 @@ interface MonthlyFee {
   payment_date: string | null;
   transaction_id: string | null;
   member: Member;
+  club_id: string;
 }
 
 interface Account {
   id: string;
   description: string;
+  club_id: string;
 }
 
 export default function MonthlyFees() {
@@ -36,6 +39,7 @@ export default function MonthlyFees() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedFee, setSelectedFee] = useState<MonthlyFee | null>(null);
   const [mensalidadeAccount, setMensalidadeAccount] = useState<Account | null>(null);
+  const [clubId, setClubId] = useState<string | null>(null);
   const [generateForm, setGenerateForm] = useState({
     reference_month: format(new Date(), 'yyyy-MM'),
     due_date: format(new Date(), 'yyyy-MM-dd'),
@@ -51,32 +55,51 @@ export default function MonthlyFees() {
 
   useEffect(() => {
     checkAdminStatus();
-    fetchMonthlyFees();
-    fetchMensalidadeAccount();
   }, []);
+
+  useEffect(() => {
+    if (clubId) {
+      fetchMonthlyFees();
+      fetchMensalidadeAccount();
+    }
+  }, [clubId]);
 
   const checkAdminStatus = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user.id) {
-        const { data: member } = await supabase
+        const { data: member, error } = await supabase
           .from('members')
-          .select('is_admin')
+          .select('is_admin, club_id')
           .eq('user_id', session.user.id)
           .single();
+
+        if (error) throw error;
         
         setIsAdmin(member?.is_admin || false);
+        if (member?.club_id) {
+          setClubId(member.club_id);
+        } else {
+          throw new Error('Clube não encontrado');
+        }
       }
     } catch (err) {
       console.error('Error checking admin status:', err);
+      setError('Erro ao verificar permissões');
+      setLoading(false);
     }
   };
 
   const fetchMensalidadeAccount = async () => {
     try {
+      if (!clubId) {
+        throw new Error('Clube não encontrado');
+      }
+
       const { data, error } = await supabase
         .from('accounts')
-        .select('id, description')
+        .select('id, description, club_id')
+        .eq('club_id', clubId)
         .ilike('description', '%mensalidade%')
         .single();
 
@@ -90,6 +113,10 @@ export default function MonthlyFees() {
 
   const fetchMonthlyFees = async () => {
     try {
+      if (!clubId) {
+        throw new Error('Clube não encontrado');
+      }
+
       const { data, error } = await supabase
         .from('monthly_fees')
         .select(`
@@ -97,9 +124,11 @@ export default function MonthlyFees() {
           member:members (
             id,
             name,
-            nickname
+            nickname,
+            club_id
           )
         `)
+        .eq('club_id', clubId)
         .order('reference_month', { ascending: false });
 
       if (error) throw error;
@@ -114,7 +143,7 @@ export default function MonthlyFees() {
 
   const handleGenerateFees = async () => {
     try {
-      if (!generateForm.reference_month || !generateForm.due_date || !generateForm.value) {
+      if (!generateForm.reference_month || !generateForm.due_date || !generateForm.value || !clubId) {
         setError('Todos os campos são obrigatórios');
         return;
       }
@@ -130,7 +159,8 @@ export default function MonthlyFees() {
         .from('members')
         .select('id')
         .eq('status', 'Ativo')
-        .eq('category', 'Contribuinte');
+        .eq('category', 'Contribuinte')
+        .eq('club_id', clubId);
 
       if (membersError) throw membersError;
 
@@ -144,7 +174,8 @@ export default function MonthlyFees() {
         member_id: member.id,
         reference_month: generateForm.reference_month + '-01', // Add day for proper date format
         due_date: generateForm.due_date,
-        value
+        value,
+        club_id: clubId
       }));
 
       const { error: insertError } = await supabase
@@ -170,7 +201,10 @@ export default function MonthlyFees() {
   };
 
   const handleConfirmPayment = async () => {
-    if (!selectedFee || !mensalidadeAccount) return;
+    if (!selectedFee || !mensalidadeAccount || !clubId) {
+      setError('Dados insuficientes para confirmar o pagamento');
+      return;
+    }
 
     try {
       // First create the transaction
@@ -182,12 +216,17 @@ export default function MonthlyFees() {
           value: selectedFee.value,
           beneficiary: selectedFee.member.nickname,
           reference_month: selectedFee.reference_month,
-          description: `Mensalidade ${selectedFee.reference_month.substring(5, 7)}/${selectedFee.reference_month.substring(0, 4)}`
+          description: `Mensalidade ${selectedFee.reference_month.substring(5, 7)}/${selectedFee.reference_month.substring(0, 4)}`,
+          club_id: clubId
         }])
         .select()
         .single();
 
       if (transactionError) throw transactionError;
+
+      if (!transaction) {
+        throw new Error('Erro ao criar transação');
+      }
 
       // Then update the monthly fee with payment info
       const { error: updateError } = await supabase
@@ -196,7 +235,8 @@ export default function MonthlyFees() {
           payment_date: paymentForm.payment_date,
           transaction_id: transaction.id
         })
-        .eq('id', selectedFee.id);
+        .eq('id', selectedFee.id)
+        .eq('club_id', clubId);
 
       if (updateError) throw updateError;
 
@@ -211,7 +251,11 @@ export default function MonthlyFees() {
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error('Error confirming payment:', err);
-      setError('Erro ao confirmar pagamento');
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Erro ao confirmar pagamento');
+      }
     }
   };
 
@@ -225,7 +269,7 @@ export default function MonthlyFees() {
   };
 
   const handleSaveEdit = async () => {
-    if (!selectedFee) return;
+    if (!selectedFee || !clubId) return;
 
     try {
       const value = parseFloat(editForm.value);
@@ -240,7 +284,8 @@ export default function MonthlyFees() {
           due_date: editForm.due_date,
           value
         })
-        .eq('id', selectedFee.id);
+        .eq('id', selectedFee.id)
+        .eq('club_id', clubId);
 
       if (error) throw error;
 
@@ -249,7 +294,8 @@ export default function MonthlyFees() {
         const { error: transactionError } = await supabase
           .from('transactions')
           .update({ value })
-          .eq('id', selectedFee.transaction_id);
+          .eq('id', selectedFee.transaction_id)
+          .eq('club_id', clubId);
 
         if (transactionError) throw transactionError;
       }
@@ -268,12 +314,14 @@ export default function MonthlyFees() {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja excluir esta mensalidade?')) return;
+    if (!clubId) return;
 
     try {
       const { error } = await supabase
         .from('monthly_fees')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('club_id', clubId);
 
       if (error) throw error;
 
@@ -303,6 +351,22 @@ export default function MonthlyFees() {
     const [year, month] = dateStr.split('-');
     return `${month}/${year}`;
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-gray-600">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="text-center text-gray-600 mt-8">
+        Apenas administradores podem acessar o módulo financeiro.
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4">

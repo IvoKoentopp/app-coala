@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { 
   Trophy, Medal, Goal, Shield, Award, Percent, Zap, 
-  ArrowLeft, BarChart, Filter, RefreshCw, ShieldCheck, ShieldX
+  ArrowLeft, BarChart, Filter, RefreshCw, ShieldCheck, ShieldX,
+  Calendar
 } from 'lucide-react';
+import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 
 interface PlayerStats {
   nickname: string;
@@ -52,10 +54,14 @@ export default function PlayerPerformance() {
     teamA: { wins: 0, draws: 0, losses: 0, goalsScored: 0, goalsConceded: 0, totalGames: 0 },
     teamB: { wins: 0, draws: 0, losses: 0, goalsScored: 0, goalsConceded: 0, totalGames: 0 }
   });
+  const [dateFilters, setDateFilters] = useState({
+    startDate: format(new Date(new Date().getFullYear(), 0, 1), 'yyyy-MM-dd'),
+    endDate: format(new Date(), 'yyyy-MM-dd')
+  });
 
   useEffect(() => {
     fetchPlayerStats();
-  }, []);
+  }, [dateFilters]);
 
   const fetchPlayerStats = async () => {
     try {
@@ -63,7 +69,6 @@ export default function PlayerPerformance() {
       setError(null);
       if (isRefreshing) setIsRefreshing(true);
 
-      // Fetch all statistics
       const { data: statistics, error: statsError } = await supabase
         .from('game_statistics')
         .select(`
@@ -75,11 +80,12 @@ export default function PlayerPerformance() {
             nickname,
             photo_url
           )
-        `);
+        `)
+        .gte('created_at', dateFilters.startDate)
+        .lte('created_at', dateFilters.endDate);
 
       if (statsError) throw statsError;
 
-      // Fetch all game participants to calculate games played
       const { data: participants, error: participantsError } = await supabase
         .from('game_participants')
         .select(`
@@ -92,15 +98,15 @@ export default function PlayerPerformance() {
           )
         `)
         .eq('confirmed', true)
-        .not('team', 'is', null);
+        .not('team', 'is', null)
+        .gte('created_at', dateFilters.startDate)
+        .lte('created_at', dateFilters.endDate);
 
       if (participantsError) throw participantsError;
 
       if (statistics && participants) {
-        // Calculate game results for each team
         const gameResults = new Map<string, { scoreA: number, scoreB: number }>();
         
-        // Group statistics by game to calculate scores
         statistics.forEach(stat => {
           if (!gameResults.has(stat.game_id)) {
             gameResults.set(stat.game_id, { scoreA: 0, scoreB: 0 });
@@ -123,10 +129,8 @@ export default function PlayerPerformance() {
           }
         });
         
-        // Calculate team results (win/loss/draw) for each game
         const teamResults = new Map<string, TeamResult[]>();
         
-        // Initialize team stats
         const teamAStats: TeamStats = { wins: 0, draws: 0, losses: 0, goalsScored: 0, goalsConceded: 0, totalGames: 0 };
         const teamBStats: TeamStats = { wins: 0, draws: 0, losses: 0, goalsScored: 0, goalsConceded: 0, totalGames: 0 };
         
@@ -153,7 +157,6 @@ export default function PlayerPerformance() {
           
           teamResults.get(gameId)!.push(resultA, resultB);
           
-          // Update team stats
           teamAStats.totalGames++;
           teamBStats.totalGames++;
           
@@ -174,16 +177,13 @@ export default function PlayerPerformance() {
           }
         });
         
-        // Update team stats state
         setTeamStats({
           teamA: teamAStats,
           teamB: teamBStats
         });
         
-        // Group statistics by player
         const playerStatsMap = new Map<string, PlayerStats>();
 
-        // First, initialize player stats from participants
         participants.forEach(participant => {
           const memberId = participant.member_id;
           const nickname = participant.members.nickname;
@@ -206,11 +206,9 @@ export default function PlayerPerformance() {
             });
           }
           
-          // Increment games played
           const playerStat = playerStatsMap.get(memberId)!;
           playerStat.games_played++;
           
-          // Add win/loss/draw based on game result
           if (teamResults.has(participant.game_id)) {
             const gameResult = teamResults.get(participant.game_id)!.find(r => r.team === participant.team);
             if (gameResult) {
@@ -225,7 +223,6 @@ export default function PlayerPerformance() {
           }
         });
         
-        // Add statistics
         statistics.forEach(stat => {
           const memberId = stat.member.id;
           
@@ -264,16 +261,11 @@ export default function PlayerPerformance() {
           }
         });
         
-        // Calculate goal average and points
         playerStatsMap.forEach(player => {
-          // Calculate goal average (goals per game)
           player.goal_average = player.games_played > 0 ? player.goals / player.games_played : 0;
-          
-          // Calculate points (3 for win, 1 for draw, plus goals and assists, minus own goals)
           player.points = (player.wins * 3) + player.draws + player.goals + (player.assists * 0.5) + (player.saves * 0.5) - (player.own_goals * 1);
         });
         
-        // Convert map to array and sort by points
         const playerStatsArray = Array.from(playerStatsMap.values())
           .sort((a, b) => b.points - a.points);
         
@@ -290,10 +282,8 @@ export default function PlayerPerformance() {
 
   const handleSort = (field: keyof PlayerStats) => {
     if (sortField === field) {
-      // Toggle direction if same field
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
-      // Set new field and default to descending
       setSortField(field);
       setSortDirection('desc');
     }
@@ -313,7 +303,6 @@ export default function PlayerPerformance() {
           return sortDirection === 'asc' ? valueA - valueB : valueB - valueA;
         }
         
-        // For string values
         if (typeof valueA === 'string' && typeof valueB === 'string') {
           return sortDirection === 'asc' 
             ? valueA.localeCompare(valueB) 
@@ -370,9 +359,34 @@ export default function PlayerPerformance() {
         </div>
       )}
 
-      {/* Team Stats Cards */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <div className="flex items-center mb-4">
+          <Calendar className="w-5 h-5 text-gray-500 mr-2" />
+          <h2 className="text-lg font-semibold">Período</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Data Inicial</label>
+            <input
+              type="date"
+              value={dateFilters.startDate}
+              onChange={(e) => setDateFilters({ ...dateFilters, startDate: e.target.value })}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Data Final</label>
+            <input
+              type="date"
+              value={dateFilters.endDate}
+              onChange={(e) => setDateFilters({ ...dateFilters, endDate: e.target.value })}
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        {/* Team A - Branco */}
         <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-gray-300">
           <div className="flex items-center mb-4">
             <ShieldCheck className="w-6 h-6 text-gray-600 mr-2" />
@@ -416,7 +430,6 @@ export default function PlayerPerformance() {
           </div>
         </div>
         
-        {/* Team B - Verde */}
         <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
           <div className="flex items-center mb-4">
             <ShieldX className="w-6 h-6 text-green-600 mr-2" />
@@ -461,7 +474,6 @@ export default function PlayerPerformance() {
         </div>
       </div>
 
-      {/* Filter */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6">
         <div className="flex items-center">
           <Filter className="w-5 h-5 text-gray-500 mr-2" />
@@ -479,7 +491,6 @@ export default function PlayerPerformance() {
         </div>
       </div>
 
-      {/* Player Stats Table */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-6">Ranking dos Jogadores</h2>
         
@@ -652,7 +663,7 @@ export default function PlayerPerformance() {
                       {player.own_goals}
                     </span>
                   </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                   <td className="px-4 py-4 whitespace-nowrap text-center">
                     <span className="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
                       {player.goal_average.toFixed(2)}
                     </span>
@@ -669,17 +680,17 @@ export default function PlayerPerformance() {
                   </td>
                 </tr>
               ))}
-              {getSortedPlayerStats().length === 0 && (
+              {playerStats.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
-                    {filterNickname ? 'Nenhum jogador encontrado com esse nome' : 'Nenhuma estatística registrada ainda'}
+                  <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
+                    Nenhuma estatística registrada ainda
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-        
+          
         <div className="mt-6 bg-gray-50 p-4 rounded-lg">
           <h3 className="font-semibold text-gray-700 mb-2">Como os pontos são calculados:</h3>
           <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">

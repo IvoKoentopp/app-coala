@@ -22,10 +22,10 @@ import FinancialDashboard from './pages/FinancialDashboard';
 import AccountsChart from './pages/AccountsChart';
 import Transactions from './pages/Transactions';
 import MonthlyFees from './pages/MonthlyFees';
+import ClubEdit from './pages/ClubEdit';
 import { AuthProvider } from './contexts/AuthContext';
 import { SidebarProvider } from './contexts/SidebarContext';
 import PrivateRoute from './pages/PrivateRoute';
-import GameConfirmTest from './pages/GameConfirmTest';
 
 function App() {
   return (
@@ -36,7 +36,6 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/game-confirmation/:gameId" element={<GameConfirmation />} />
-            <Route path="/game-confirm-test/:gameId" element={<GameConfirmTest />} />
             <Route
               path="/"
               element={
@@ -122,6 +121,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <Settings />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/club/edit"
+              element={
+                <PrivateRoute>
+                  <ClubEdit />
                 </PrivateRoute>
               }
             />

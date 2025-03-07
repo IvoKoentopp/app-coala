@@ -34,10 +34,29 @@ export default function Register() {
   const [loading, setLoading] = useState(true);
   const [sponsorsError, setSponsorsError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [clubId, setClubId] = useState<string | null>(null);
 
   useEffect(() => {
+    fetchClubId();
     fetchMembers();
   }, []);
+
+  const fetchClubId = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clubs')
+        .select('id')
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setClubId(data.id);
+      }
+    } catch (err) {
+      console.error('Error fetching club ID:', err);
+      setError('Erro ao carregar dados do clube');
+    }
+  };
 
   const fetchMembers = async () => {
     try {
@@ -104,7 +123,6 @@ export default function Register() {
 
   const validateAccessKey = async (key: string): Promise<boolean> => {
     try {
-      // Direct query to club_settings table instead of using the function
       const { data, error } = await supabase
         .from('club_settings')
         .select('value')
@@ -116,7 +134,6 @@ export default function Register() {
         throw new Error('Sistema não configurado para registros. Entre em contato com um administrador.');
       }
 
-      // If no access key is set in the database, registration is not allowed
       if (!data || !data.value) {
         throw new Error('Sistema não configurado para registros. Entre em contato com um administrador.');
       }
@@ -207,7 +224,7 @@ export default function Register() {
     setIsSubmitting(true);
 
     try {
-      // Validar apelido antes de prosseguir
+      // Validate nickname before proceeding
       const isNicknameValid = await validateNickname(formData.nickname);
       if (!isNicknameValid) {
         setIsSubmitting(false);
@@ -216,6 +233,8 @@ export default function Register() {
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user.id) throw new Error('Usuário não autenticado');
+
+      if (!clubId) throw new Error('ID do clube não encontrado');
 
       const photoUrl = await uploadPhoto(session.user.id);
 
@@ -230,7 +249,8 @@ export default function Register() {
         payment_start_month: formData.category === 'Contribuinte' ? formData.paymentStartMonth : null,
         status: 'Ativo',
         photo_url: photoUrl,
-        phone: formData.phone
+        phone: formData.phone,
+        club_id: clubId
       };
 
       const { error } = await supabase.from('members').insert([memberData]);

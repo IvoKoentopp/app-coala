@@ -3,7 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Users, Calendar, Wallet, LogOut, ChevronDown, ChevronRight, 
   UserCog, User, PlusCircle, List, Book, Music, Mail, Settings, 
-  BarChart, DollarSign, PieChart, FileText, CreditCard, Award
+  BarChart, DollarSign, PieChart, FileText, CreditCard, Award,
+  Building
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -24,6 +25,7 @@ export default function Sidebar() {
   const isActive = (path: string) => location.pathname === path;
 
   const clubSubmenu = [
+    { path: '/club/edit', icon: Building, label: 'Dados do Clube' },
     { path: '/club/invitation', icon: Mail, label: 'Convite' },
     { path: '/club/statute', icon: Book, label: 'Estatuto' },
     { path: '/club/anthem', icon: Music, label: 'Hino' },

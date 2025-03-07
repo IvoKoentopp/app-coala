@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { FALLBACK_LOGO_URL, APP_NAME } from '../config/constants';
-import { useClubSettings } from '../hooks/useClubSettings';
+import { APP_NAME } from '../config/constants';
 import { Menu } from 'lucide-react';
 import { useSidebar } from '../contexts/SidebarContext';
 
 interface Member {
   nickname: string;
+  club: {
+    name: string;
+    logo_url: string | null;
+  };
 }
 
 export default function Header() {
   const navigate = useNavigate();
   const [member, setMember] = useState<Member | null>(null);
-  const { settings } = useClubSettings();
-  const logoUrl = settings.club_logo || FALLBACK_LOGO_URL;
   const { toggleSidebar } = useSidebar();
 
   useEffect(() => {
@@ -27,7 +28,13 @@ export default function Header() {
       if (session?.user.id) {
         const { data, error } = await supabase
           .from('members')
-          .select('nickname')
+          .select(`
+            nickname,
+            club:clubs (
+              name,
+              logo_url
+            )
+          `)
           .eq('user_id', session.user.id)
           .single();
 
@@ -50,13 +57,21 @@ export default function Header() {
               className="flex items-center cursor-pointer" 
               onClick={() => navigate('/')}
             >
-              <img
-                src={logoUrl}
-                alt={APP_NAME}
-                className="h-10 w-10"
-              />
+              {member?.club?.logo_url ? (
+                <img
+                  src={member.club.logo_url}
+                  alt={member.club.name || APP_NAME}
+                  className="h-10 w-10 object-contain"
+                />
+              ) : (
+                <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center">
+                  <span className="text-gray-500 text-lg">
+                    {APP_NAME.charAt(0)}
+                  </span>
+                </div>
+              )}
               <h1 className="ml-3 text-xl font-bold text-gray-900">
-                {APP_NAME}
+                {member?.club?.name || APP_NAME}
               </h1>
             </div>
             <button

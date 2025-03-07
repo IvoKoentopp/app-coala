@@ -10,7 +10,7 @@ interface Member {
   user_id: string;
   name: string;
   nickname: string;
-  birth_date: string;
+  birth_date: string | null;
   category: string;
   sponsor_nickname: string | null;
   payment_start_month: string | null;
@@ -31,7 +31,21 @@ export default function EditMember() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [members, setMembers] = useState<{ nickname: string }[]>([]);
-  const [formData, setFormData] = useState<Member | null>(null);
+  const [formData, setFormData] = useState<Member>({
+    id: '',
+    user_id: '',
+    name: '',
+    nickname: '',
+    birth_date: '',
+    category: '',
+    sponsor_nickname: '',
+    payment_start_month: '',
+    status: '',
+    photo_url: '',
+    phone: '',
+    start_month: '',
+    is_admin: false
+  });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -246,15 +260,15 @@ export default function EditMember() {
       const updateData: any = {
         name: formData.name,
         nickname: formData.nickname,
-        phone: formData.phone,
+        phone: formData.phone || '',
         photo_url: photoUrl,
-        sponsor_nickname: formData.sponsor_nickname,
-        birth_date: formData.birth_date
+        sponsor_nickname: formData.sponsor_nickname || '',
+        birth_date: formData.birth_date || ''
       };
 
       if (isAdmin) {
         updateData.category = formData.category;
-        updateData.payment_start_month = formData.payment_start_month;
+        updateData.payment_start_month = formData.payment_start_month || '';
         updateData.status = formData.status;
         updateData.start_month = formData.start_month;
       }
@@ -417,9 +431,8 @@ export default function EditMember() {
             ) : (
               <input
                 type="date"
-                required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
-                value={formData.birth_date}
+                value={formData.birth_date || ''}
                 onChange={(e) => setFormData({ ...formData, birth_date: e.target.value })}
               />
             )}

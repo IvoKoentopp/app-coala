@@ -1,226 +1,206 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabaseAnon } from '../lib/supabase-anon';
+import { supabase } from '../lib/supabase';
+import { format } from 'date-fns';
 import Logo from '../components/Logo';
-import { PostgrestError } from '@supabase/supabase-js';
+import { Check, X, AlertTriangle, Search } from 'lucide-react';
 
 interface Game {
   id: string;
   date: string;
   field: string;
   status: string;
-  created_at: string;
-  updated_at: string;
-  cancellation_reason: string | null;
-}
-
-interface Member {
-  id: string;
-  nickname: string;
-}
-
-interface GameParticipant {
-  member: {
-    nickname: string;
-  };
-  confirmed: boolean;
 }
 
 export default function GameConfirmation() {
   const { gameId } = useParams();
   const navigate = useNavigate();
+  const [game, setGame] = useState<Game | null>(null);
   const [nickname, setNickname] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [game, setGame] = useState<Game | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [members, setMembers] = useState<{id: string, nickname: string}[]>([]);
+  const [filteredMembers, setFilteredMembers] = useState<{id: string, nickname: string}[]>([]);
+  const [showMembersList, setShowMembersList] = useState(false);
 
   useEffect(() => {
-    const loadGame = async () => {
-      try {
-        if (!gameId) {
-          console.error('Game ID não fornecido');
-          setError('ID do jogo não fornecido');
-          return;
-        }
-
-        console.log('Buscando jogo:', gameId);
-        const { data, error } = await supabaseAnon
-          .from('games')
-          .select('id, date, field, status')
-          .eq('id', gameId)
-          .single();
-
-        if (error) {
-          console.error('Erro Supabase:', error);
-          if (error.code === 'PGRST116') {
-            setError('Jogo não encontrado');
-          } else if (error.code === '42501') {
-            setError('Sem permissão para ver este jogo');
-          } else {
-            setError(`Erro ao carregar jogo: ${error.message}`);
-          }
-          return;
-        }
-
-        if (!data) {
-          setError('Jogo não encontrado');
-          return;
-        }
-
-        if (data.status !== 'Agendado') {
-          setError('Este jogo não está mais agendado');
-          return;
-        }
-
-        setGame(data);
-      } catch (err) {
-        console.error('Erro ao carregar jogo:', err);
-        setError('Erro inesperado ao carregar detalhes do jogo');
-      }
-    };
-
-    loadGame();
+    fetchGame();
+    fetchMembers();
   }, [gameId]);
 
-  const shareOnWhatsApp = async () => {
-    if (!game) return;
+  useEffect(() => {
+    if (nickname.trim().length > 0) {
+      const filtered = members.filter(member => 
+        member.nickname.toLowerCase().includes(nickname.toLowerCase())
+      );
+      setFilteredMembers(filtered);
+      setShowMembersList(filtered.length > 0);
+    } else {
+      setFilteredMembers([]);
+      setShowMembersList(false);
+    }
+  }, [nickname, members]);
 
+  const fetchGame = async () => {
     try {
-      // Buscar lista de participantes
-      const { data: participants, error: participantsError } = await supabaseAnon
-        .from('game_participants')
-        .select(`
-          member:member_id(nickname),
-          confirmed
-        `)
-        .eq('game_id', gameId);
-
-      if (participantsError) {
-        console.error('Erro ao buscar participantes:', participantsError);
-        throw participantsError;
-      }
-
-      // Separar confirmados e não confirmados
-      const confirmed = participants
-        ?.filter((p: GameParticipant) => p.confirmed)
-        .map((p: GameParticipant) => p.member.nickname)
-        .sort() || [];
+      setLoading(true);
+      setError('');
       
-      const notConfirmed = participants
-        ?.filter((p: GameParticipant) => !p.confirmed)
-        .map((p: GameParticipant) => p.member.nickname)
-        .sort() || [];
-
-      // Formatar a mensagem
-      const date = new Date(game.date).toLocaleDateString();
-      let message = `⚽ *Futebol ${date}*\n`;
-      message += `📍 ${game.field}\n\n`;
-      
-      message += `✅ *Confirmados (${confirmed.length})*:\n`;
-      confirmed.forEach(name => message += `- ${name}\n`);
-      
-      if (notConfirmed.length > 0) {
-        message += `\n❌ *Não vão (${notConfirmed.length})*:\n`;
-        notConfirmed.forEach(name => message += `- ${name}\n`);
-      }
-
-      // Codificar a mensagem para URL
-      const encodedMessage = encodeURIComponent(message);
-      
-      // Redirecionar para o WhatsApp
-      window.location.href = `https://wa.me/?text=${encodedMessage}`;
-
-    } catch (err) {
-      console.error('Erro ao compartilhar:', err);
-      navigate('/');
-    }
-  };
-
-  const handleConfirmation = async (willPlay: boolean) => {
-    if (!nickname.trim()) {
-      setError('Por favor, informe seu apelido');
-      return;
-    }
-
-    if (!game) {
-      setError('Jogo não encontrado');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      const { data: member, error: memberError } = await supabaseAnon
-        .from('members')
-        .select('id, nickname')
-        .eq('nickname', nickname.trim())
-        .maybeSingle();
-
-      if (memberError) {
-        console.error('Erro ao buscar membro:', memberError);
-        throw memberError;
-      }
-      
-      if (!member) {
-        setError('Apelido não encontrado. Verifique se digitou corretamente.');
+      if (!gameId) {
+        setError('Link inválido');
         return;
       }
 
-      console.log('Membro encontrado:', member);
+      const { data, error } = await supabase
+        .from('games')
+        .select('*')
+        .eq('id', gameId)
+        .single();
 
-      const { error: confirmError } = await supabaseAnon
-        .from('game_participants')
-        .upsert({
-          game_id: gameId,
-          member_id: member.id,
-          confirmed: willPlay
-        }, {
-          onConflict: 'game_id,member_id'
-        });
-
-      if (confirmError) {
-        console.error('Erro ao confirmar:', confirmError);
-        throw confirmError;
-      }
-
-      setSuccess(willPlay ? 'Presença confirmada!' : 'Ausência registrada!');
-
-      // Compartilhar no WhatsApp após 1 segundo
-      setTimeout(() => {
-        shareOnWhatsApp();
-      }, 1000);
-
-    } catch (err) {
-      console.error('Erro:', err);
-      const error = err as PostgrestError;
+      if (error) throw error;
       
-      if (error?.code === '42501') {
-        setError('Não foi possível confirmar sua presença. O jogo pode não estar mais disponível para confirmação.');
-      } else if (error?.message) {
-        setError(`Erro ao processar sua confirmação: ${error.message}`);
-      } else {
-        setError('Erro ao processar sua confirmação. Por favor, tente novamente.');
+      if (!data) {
+        setError('Jogo não encontrado');
+        return;
       }
+
+      // Verificar se o jogo está agendado
+      if (data.status !== 'Agendado') {
+        setError(`Este jogo está ${data.status.toLowerCase()}. Não é possível confirmar presença.`);
+        return;
+      }
+
+      setGame(data);
+    } catch (err) {
+      console.error('Error fetching game:', err);
+      setError('Erro ao carregar os dados do jogo. Por favor, tente novamente mais tarde.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (error === 'Jogo não encontrado' || error === 'Este jogo não está mais agendado') {
+  const fetchMembers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('members')
+        .select('id, nickname')
+        .eq('status', 'Ativo')
+        .order('nickname');
+        
+      if (error) throw error;
+      
+      if (data) {
+        setMembers(data);
+      }
+    } catch (err) {
+      console.error('Error fetching members:', err);
+    }
+  };
+
+  const handleSelectMember = (memberId: string, memberNickname: string) => {
+    setNickname(memberNickname);
+    setShowMembersList(false);
+  };
+
+  const handleConfirmation = async (isConfirmed: boolean) => {
+    try {
+      setIsSubmitting(true);
+      setError('');
+      
+      if (!gameId || !nickname.trim()) {
+        setError('Por favor, informe seu apelido');
+        return;
+      }
+
+      // Buscar o membro pelo apelido
+      const { data: memberData, error: memberError } = await supabase
+        .from('members')
+        .select('id')
+        .eq('nickname', nickname.trim())
+        .single();
+
+      if (memberError) {
+        if (memberError.code === 'PGRST116') {
+          setError(`Sócio com apelido "${nickname}" não encontrado. Verifique se digitou corretamente.`);
+        } else {
+          throw memberError;
+        }
+        return;
+      }
+
+      const memberId = memberData.id;
+
+      // Verificar se já existe uma participação para este jogo e membro
+      const { data: existingParticipation, error: participationError } = await supabase
+        .from('game_participants')
+        .select('id')
+        .eq('game_id', gameId)
+        .eq('member_id', memberId)
+        .maybeSingle();
+
+      if (participationError) throw participationError;
+
+      if (existingParticipation) {
+        // Atualizar participação existente
+        const { error: updateError } = await supabase
+          .from('game_participants')
+          .update({
+            confirmed: isConfirmed,
+            confirmation_date: new Date().toISOString()
+          })
+          .eq('game_id', gameId)
+          .eq('member_id', memberId);
+
+        if (updateError) throw updateError;
+      } else {
+        // Criar nova participação
+        const { error: insertError } = await supabase
+          .from('game_participants')
+          .insert({
+            game_id: gameId,
+            member_id: memberId,
+            confirmed: isConfirmed,
+            confirmation_date: new Date().toISOString()
+          });
+
+        if (insertError) throw insertError;
+      }
+
+      setSuccess(isConfirmed ? 'Presença confirmada com sucesso!' : 'Ausência registrada com sucesso!');
+    } catch (err) {
+      console.error('Error updating confirmation:', err);
+      setError('Erro ao confirmar presença. Por favor, tente novamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50">
-        <Logo />
-        <div className="mt-8 w-full max-w-md bg-white rounded-lg shadow p-6">
-          <div className="text-center text-red-600">
-            <p className="text-xl font-semibold">{error}</p>
+      <div className="min-h-screen bg-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-green-500 border-t-transparent"></div>
+          <div className="mt-4 text-gray-600">Carregando...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-green-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+          <Logo />
+          <div className="mt-6 flex flex-col items-center">
+            <AlertTriangle className="w-12 h-12 text-yellow-500 mb-4" />
+            <div className="text-red-600 mb-4">{error}</div>
             <button
               onClick={() => navigate('/')}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
-              Voltar para Home
+              Voltar para a página inicial
             </button>
           </div>
         </div>
@@ -228,73 +208,107 @@ export default function GameConfirmation() {
     );
   }
 
+  if (!game) {
+    return (
+      <div className="min-h-screen bg-green-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+          <Logo />
+          <div className="mt-6 text-gray-600">Dados não encontrados</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50">
-      <Logo />
-      
-      <div className="mt-8 w-full max-w-md bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold text-center mb-6">Confirmação de Presença</h2>
-
-        {game && (
-          <div className="mb-6 text-center">
+    <div className="min-h-screen bg-green-50 flex items-center justify-center px-4">
+      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
+        <Logo />
+        
+        <div className="mt-8 text-center">
+          <h2 className="text-2xl font-bold text-gray-900">Confirmação de Presença</h2>
+          <div className="mt-4 space-y-2">
             <p className="text-gray-600">
-              Data: {new Date(game.date).toLocaleDateString()}
+              Confirme sua presença para o jogo do dia{' '}
+              <span className="font-medium">
+                {format(new Date(game.date), 'dd/MM/yyyy')}
+              </span>
             </p>
-            <p className="text-gray-600">
-              Local: {game.field}
-            </p>
+            <p className="text-sm text-gray-500">{game.field}</p>
           </div>
-        )}
 
-        {success ? (
-          <div className="text-center">
-            <div className="mb-4 text-green-600 font-medium">{success}</div>
-            <p className="text-gray-600">Obrigado por confirmar!</p>
-            <p className="text-sm text-gray-500 mt-2">
-              Abrindo WhatsApp para compartilhar...
-            </p>
-          </div>
-        ) : (
-          <>
-            {error && (
-              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
-                {error}
+          {success ? (
+            <div className="mt-8 p-4 bg-green-50 text-green-700 rounded-md">
+              {success}
+              <div className="mt-4 text-sm text-gray-600">
+                Você pode fechar esta janela.
               </div>
-            )}
-
-            <div className="mb-6">
-              <label className="block text-gray-700 text-sm font-bold mb-2">
-                Seu Apelido
-              </label>
-              <input
-                type="text"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder="Digite seu apelido"
-                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={loading}
-              />
             </div>
+          ) : (
+            <>
+              <div className="mt-8 mb-6">
+                <label htmlFor="nickname" className="block text-sm font-medium text-gray-700 mb-2">
+                  Digite seu apelido
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    id="nickname"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Seu apelido no clube"
+                    autoComplete="off"
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <Search className="h-5 w-5 text-gray-400" />
+                  </div>
+                  
+                  {/* Lista de membros filtrados */}
+                  {showMembersList && (
+                    <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
+                      {filteredMembers.map((member) => (
+                        <div
+                          key={member.id}
+                          onClick={() => handleSelectMember(member.id, member.nickname)}
+                          className="cursor-pointer select-none relative py-2 pl-3 pr-9 hover:bg-green-50 text-left"
+                        >
+                          {member.nickname}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
 
-            <div className="flex gap-4">
-              <button
-                onClick={() => handleConfirmation(true)}
-                disabled={loading}
-                className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 disabled:opacity-50"
-              >
-                {loading ? 'Processando...' : 'Vou Jogar'}
-              </button>
-              
-              <button
-                onClick={() => handleConfirmation(false)}
-                disabled={loading}
-                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 disabled:opacity-50"
-              >
-                {loading ? 'Processando...' : 'Não Vou Jogar'}
-              </button>
-            </div>
-          </>
-        )}
+              <div className="flex justify-center space-x-4">
+                <button
+                  onClick={() => handleConfirmation(true)}
+                  disabled={isSubmitting || !nickname.trim()}
+                  className={`flex items-center px-6 py-2 rounded-md text-sm font-medium ${
+                    isSubmitting || !nickname.trim()
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-green-600 text-white hover:bg-green-700'
+                  }`}
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Vou Jogar
+                </button>
+                <button
+                  onClick={() => handleConfirmation(false)}
+                  disabled={isSubmitting || !nickname.trim()}
+                  className={`flex items-center px-6 py-2 rounded-md text-sm font-medium ${
+                    isSubmitting || !nickname.trim()
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-red-600 text-white hover:bg-red-700'
+                  }`}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Não Vou Jogar
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

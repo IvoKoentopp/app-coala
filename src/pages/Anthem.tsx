@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import { Music, ExternalLink, AlertTriangle, RefreshCw, Download } from 'lucide-react';
 import Logo from '../components/Logo';
-import html2pdf from 'html-to-pdf-js';
+import html2pdf from 'html2pdf.js';
+import { supabase } from '../lib/supabase';
 
 interface AnthemSettings {
   club_anthem_url?: string | null;
@@ -36,13 +36,17 @@ export default function Anthem() {
         return acc;
       }, {});
 
-      setSettings(settingsMap);
+      setSettings(settingsMap || {});
     } catch (err) {
       console.error('Error fetching anthem settings:', err);
       setError('Erro ao carregar o hino. Por favor, tente novamente mais tarde.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRetry = () => {
+    fetchAnthemSettings();
   };
 
   const handleDownloadPDF = async () => {
@@ -85,7 +89,7 @@ export default function Anthem() {
             <AlertTriangle className="w-12 h-12 mb-4" />
             <p className="text-center text-gray-600 mb-4">{error}</p>
             <button
-              onClick={fetchAnthemSettings}
+              onClick={handleRetry}
               className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
             >
               <RefreshCw className="w-4 h-4 mr-2" />

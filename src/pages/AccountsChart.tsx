@@ -6,6 +6,7 @@ interface Account {
   id: string;
   description: string;
   account_group: 'Receita' | 'Despesa';
+  club_id: string;
 }
 
 export default function AccountsChart() {
@@ -14,6 +15,7 @@ export default function AccountsChart() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [clubId, setClubId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [formData, setFormData] = useState<Partial<Account>>({
@@ -23,31 +25,50 @@ export default function AccountsChart() {
 
   useEffect(() => {
     checkAdminStatus();
-    fetchAccounts();
   }, []);
+
+  useEffect(() => {
+    if (clubId) {
+      fetchAccounts();
+    }
+  }, [clubId]);
 
   const checkAdminStatus = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user.id) {
-        const { data: member } = await supabase
+        const { data: member, error } = await supabase
           .from('members')
-          .select('is_admin')
+          .select('is_admin, club_id')
           .eq('user_id', session.user.id)
           .single();
+
+        if (error) throw error;
         
         setIsAdmin(member?.is_admin || false);
+        if (member?.club_id) {
+          setClubId(member.club_id);
+        } else {
+          throw new Error('Clube não encontrado');
+        }
       }
     } catch (err) {
       console.error('Error checking admin status:', err);
+      setError('Erro ao verificar permissões');
+      setLoading(false);
     }
   };
 
   const fetchAccounts = async () => {
     try {
+      if (!clubId) {
+        throw new Error('Clube não encontrado');
+      }
+
       const { data, error } = await supabase
         .from('accounts')
         .select('*')
+        .eq('club_id', clubId)
         .order('description');
 
       if (error) throw error;
@@ -62,7 +83,7 @@ export default function AccountsChart() {
 
   const handleSave = async () => {
     try {
-      if (!formData.description) {
+      if (!formData.description || !clubId) {
         setError('Descrição é obrigatória');
         return;
       }
@@ -74,7 +95,8 @@ export default function AccountsChart() {
             description: formData.description,
             account_group: formData.account_group
           })
-          .eq('id', editingAccount.id);
+          .eq('id', editingAccount.id)
+          .eq('club_id', clubId);
 
         if (error) throw error;
         setSuccess('Conta atualizada com sucesso!');
@@ -83,7 +105,8 @@ export default function AccountsChart() {
           .from('accounts')
           .insert([{
             description: formData.description,
-            account_group: formData.account_group
+            account_group: formData.account_group,
+            club_id: clubId
           }]);
 
         if (error) throw error;
@@ -98,7 +121,11 @@ export default function AccountsChart() {
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error('Error saving account:', err);
-      setError('Erro ao salvar conta');
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Erro ao salvar conta');
+      }
     }
   };
 
@@ -113,12 +140,14 @@ export default function AccountsChart() {
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja excluir esta conta?')) return;
+    if (!clubId) return;
 
     try {
       const { error } = await supabase
         .from('accounts')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('club_id', clubId);
 
       if (error) throw error;
 
@@ -128,9 +157,21 @@ export default function AccountsChart() {
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error('Error deleting account:', err);
-      setError('Erro ao excluir conta');
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Erro ao excluir conta');
+      }
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-gray-600">Carregando...</div>
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return (

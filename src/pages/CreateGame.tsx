@@ -8,6 +8,7 @@ export default function CreateGame() {
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clubId, setClubId] = useState<string | null>(null);
   const [newGame, setNewGame] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
     field: 'Campo Principal'
@@ -23,14 +24,18 @@ export default function CreateGame() {
       if (session?.user.id) {
         const { data: member } = await supabase
           .from('members')
-          .select('category, is_admin')
+          .select('category, is_admin, club_id')
           .eq('user_id', session.user.id)
           .single();
         
         setIsAdmin(member?.category === 'Contribuinte' || member?.is_admin);
+        if (member?.club_id) {
+          setClubId(member.club_id);
+        }
       }
     } catch (err) {
       console.error('Error checking admin status:', err);
+      setError('Erro ao verificar permissões');
     }
   };
 
@@ -39,21 +44,30 @@ export default function CreateGame() {
     setError(null);
     
     try {
+      if (!clubId) {
+        throw new Error('ID do clube não encontrado');
+      }
+
       // 1. Create the game
       const { data: game, error: gameError } = await supabase
         .from('games')
-        .insert([newGame])
+        .insert([{
+          ...newGame,
+          club_id: clubId,
+          status: 'Agendado'
+        }])
         .select()
         .single();
 
       if (gameError) throw gameError;
       if (!game) throw new Error('No game data returned');
 
-      // 2. Get all active members
+      // 2. Get all active members from the same club
       const { data: members, error: membersError } = await supabase
         .from('members')
         .select('id')
-        .eq('status', 'Ativo');
+        .eq('status', 'Ativo')
+        .eq('club_id', clubId);
 
       if (membersError) throw membersError;
       if (!members) throw new Error('No members found');
@@ -75,7 +89,11 @@ export default function CreateGame() {
       navigate('/games');
     } catch (err) {
       console.error('Error creating game:', err);
-      setError('Erro ao criar o jogo. Por favor, tente novamente.');
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Erro ao criar o jogo. Por favor, tente novamente.');
+      }
     }
   };
 

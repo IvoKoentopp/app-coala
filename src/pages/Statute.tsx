@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Printer, AlertTriangle, RefreshCw } from 'lucide-react';
 import { supabase, testConnection } from '../lib/supabase';
-import html2pdf from 'html-to-pdf-js';
+import html2pdf from 'html2pdf.js';
 
 interface StatuteSetting {
   value: string | null;

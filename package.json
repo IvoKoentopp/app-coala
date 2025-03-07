@@ -14,15 +14,13 @@
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@supabase/supabase-js": "^2.39.7",
-    "core-js": "^3.41.0",
     "date-fns": "^2.30.0",
-    "html-to-pdf-js": "^0.9.3",
+    "html2pdf.js": "^0.10.1",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-quill": "^2.0.0",
-    "react-router-dom": "^6.22.2",
-    "regenerator-runtime": "^0.14.1"
+    "react-router-dom": "^6.22.2"
   },
   "devDependencies": {
     "@eslint/js": "^8.56.0",
