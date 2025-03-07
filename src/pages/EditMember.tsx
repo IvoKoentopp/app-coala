@@ -36,13 +36,13 @@ export default function EditMember() {
     user_id: '',
     name: '',
     nickname: '',
-    birth_date: '',
+    birth_date: null,
     category: '',
-    sponsor_nickname: '',
-    payment_start_month: '',
+    sponsor_nickname: null,
+    payment_start_month: null,
     status: '',
-    photo_url: '',
-    phone: '',
+    photo_url: null,
+    phone: null,
     start_month: '',
     is_admin: false
   });
@@ -136,7 +136,17 @@ export default function EditMember() {
         }
       }
 
+      console.log('Member data from database:', memberData);
+
       if (memberData) {
+        // Garante que campos opcionais sejam null em vez de string vazia
+        memberData.sponsor_nickname = memberData.sponsor_nickname || null;
+        memberData.phone = memberData.phone || null;
+        memberData.photo_url = memberData.photo_url || null;
+        memberData.birth_date = memberData.birth_date || null;
+        memberData.payment_start_month = memberData.payment_start_month || null;
+
+        console.log('Member data after null handling:', memberData);
         setFormData(memberData);
         
         if (memberData.photo_url) {
@@ -254,31 +264,49 @@ export default function EditMember() {
       
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user.id) throw new Error('Usuário não autenticado');
+
+      // Verifica se o usuário tem permissão para editar este membro
+      const { data: memberPermission } = await supabase
+        .from('members')
+        .select('id')
+        .eq('id', memberId)
+        .single();
+
+      if (!memberPermission) {
+        throw new Error('Você não tem permissão para editar este membro');
+      }
       
       const photoUrl = await uploadPhoto(session.user.id);
 
-      const updateData: any = {
+      // Remove campos vazios para que o Supabase use NULL
+      const updateData: Partial<Member> = {
         name: formData.name,
         nickname: formData.nickname,
-        phone: formData.phone || '',
+        phone: formData.phone || null,
         photo_url: photoUrl,
-        sponsor_nickname: formData.sponsor_nickname || '',
-        birth_date: formData.birth_date || ''
+        sponsor_nickname: formData.sponsor_nickname || null,
+        birth_date: formData.birth_date || null
       };
 
       if (isAdmin) {
         updateData.category = formData.category;
-        updateData.payment_start_month = formData.payment_start_month || '';
+        updateData.payment_start_month = formData.payment_start_month || null;
         updateData.status = formData.status;
         updateData.start_month = formData.start_month;
       }
+
+      console.log('Updating member with data:', updateData);
 
       const { error } = await supabase
         .from('members')
         .update(updateData)
         .eq('id', memberId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error from Supabase:', error);
+        throw error;
+      }
+      
       setSuccess(true);
       setTimeout(() => navigate('/members'), 2000);
     } catch (err) {
