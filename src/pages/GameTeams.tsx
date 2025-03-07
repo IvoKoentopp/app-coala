@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
@@ -63,8 +63,6 @@ export default function GameTeams() {
   const [selectedMember, setSelectedMember] = useState<GameParticipant | null>(null);
   const [selectedStatType, setSelectedStatType] = useState<'goal' | 'own_goal' | 'save' | null>(null);
   const [selectedAssistMember, setSelectedAssistMember] = useState<string | null>(null);
-  const [teamAScore, setTeamAScore] = useState(0);
-  const [teamBScore, setTeamBScore] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
   const [showEndGameModal, setShowEndGameModal] = useState(false);
 
@@ -79,7 +77,38 @@ export default function GameTeams() {
 
   useEffect(() => {
     console.log('Statistics changed:', statistics);
-    calculateScores();
+  }, [statistics]);
+
+  const scores = useMemo(() => {
+    console.log('Calculating scores from statistics:', statistics);
+    
+    let scoreA = 0;
+    let scoreB = 0;
+
+    statistics.forEach(stat => {
+      console.log('Processing stat:', stat);
+      
+      if (stat.statistic_type === 'goal') {
+        if (stat.team === 'A') {
+          scoreA++;
+          console.log('Goal for team A, score:', scoreA);
+        } else if (stat.team === 'B') {
+          scoreB++;
+          console.log('Goal for team B, score:', scoreB);
+        }
+      } else if (stat.statistic_type === 'own_goal') {
+        if (stat.team === 'A') {
+          scoreB++;
+          console.log('Own goal by team A, score B:', scoreB);
+        } else if (stat.team === 'B') {
+          scoreA++;
+          console.log('Own goal by team B, score A:', scoreA);
+        }
+      }
+    });
+
+    console.log('Final scores - A:', scoreA, 'B:', scoreB);
+    return { teamA: scoreA, teamB: scoreB };
   }, [statistics]);
 
   const checkAdminStatus = async () => {
@@ -202,52 +231,11 @@ export default function GameTeams() {
 
       if (data) {
         setStatistics(data);
-        // Forçar recálculo do placar após atualizar as estatísticas
-        calculateScores();
       }
     } catch (err) {
       console.error('Error fetching statistics:', err);
       setError('Erro ao carregar estatísticas');
     }
-  };
-
-  const calculateScores = () => {
-    console.log('Calculating scores from statistics:', statistics);
-    
-    if (!statistics.length) {
-      setTeamAScore(0);
-      setTeamBScore(0);
-      return;
-    }
-
-    let scoreA = 0;
-    let scoreB = 0;
-
-    statistics.forEach(stat => {
-      console.log('Processing stat:', stat);
-      
-      if (stat.statistic_type === 'goal') {
-        if (stat.team === 'A') {
-          scoreA++;
-          console.log('Goal for team A, score:', scoreA);
-        } else if (stat.team === 'B') {
-          scoreB++;
-          console.log('Goal for team B, score:', scoreB);
-        }
-      } else if (stat.statistic_type === 'own_goal') {
-        if (stat.team === 'A') {
-          scoreB++;
-          console.log('Own goal by team A, score B:', scoreB);
-        } else if (stat.team === 'B') {
-          scoreA++;
-          console.log('Own goal by team B, score A:', scoreA);
-        }
-      }
-    });
-
-    console.log('Final scores - A:', scoreA, 'B:', scoreB);
-    setTeamAScore(scoreA);
-    setTeamBScore(scoreB);
   };
 
   const handleAssignTeam = async (participantId: string, team: 'A' | 'B' | null) => {
@@ -416,9 +404,14 @@ export default function GameTeams() {
       setSelectedAssistMember(null);
       setShowStatModal(false);
       
-      // Refresh statistics and force score update
-      await fetchStatistics();
-      calculateScores();
+      // Refresh statistics
+      try {
+        // Aguarda um pequeno delay para garantir que o banco foi atualizado
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await fetchStatistics();
+      } catch (err) {
+        console.error('Error refreshing statistics:', err);
+      }
     } catch (err) {
       console.error('Error saving statistic:', err);
       setError('Erro ao salvar estatística');
@@ -525,6 +518,31 @@ export default function GameTeams() {
     }
   };
 
+  useEffect(() => {
+    if (!gameId) return;
+
+    const subscription = supabase
+      .channel('game_statistics_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'game_statistics',
+          filter: `game_id=eq.${gameId}`
+        },
+        async () => {
+          console.log('Statistics changed, refreshing...');
+          await fetchStatistics();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [gameId]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -613,9 +631,9 @@ export default function GameTeams() {
         <div className="flex flex-col sm:flex-row justify-center items-center text-xl sm:text-3xl font-bold">
           <div className="text-white mb-2 sm:mb-0">Time Branco</div>
           <div className="mx-2 sm:mx-4 flex items-center">
-            <span className="bg-white text-gray-800 px-3 py-1 rounded-l-lg">{teamAScore}</span>
+            <span className="bg-white text-gray-800 px-3 py-1 rounded-l-lg">{scores.teamA}</span>
             <span className="mx-2">x</span>
-            <span className="bg-green-500 text-white px-3 py-1 rounded-r-lg">{teamBScore}</span>
+            <span className="bg-green-500 text-white px-3 py-1 rounded-r-lg">{scores.teamB}</span>
           </div>
           <div className="text-green-400 mt-2 sm:mt-0">Time Verde</div>
         </div>
