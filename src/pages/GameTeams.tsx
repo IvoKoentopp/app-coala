@@ -9,6 +9,7 @@ interface Game {
   date: string;
   field: string;
   status: string;
+  club_id: string;
 }
 
 interface Member {
@@ -41,6 +42,7 @@ interface GameStatistic {
     nickname: string;
     photo_url: string | null;
   } | null;
+  club_id: string;
 }
 
 export default function GameTeams() {
@@ -76,6 +78,7 @@ export default function GameTeams() {
   }, [gameId]);
 
   useEffect(() => {
+    console.log('Statistics changed:', statistics);
     calculateScores();
   }, [statistics]);
 
@@ -167,6 +170,8 @@ export default function GameTeams() {
     try {
       if (!gameId) return;
 
+      console.log('Fetching statistics for game:', gameId);
+
       const { data, error } = await supabase
         .from('game_statistics')
         .select(`
@@ -183,11 +188,17 @@ export default function GameTeams() {
           assist:members!game_statistics_assist_by_fkey (
             nickname,
             photo_url
-          )
+          ),
+          club_id
         `)
         .eq('game_id', gameId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching statistics:', error);
+        throw error;
+      }
+
+      console.log('Statistics fetched:', data);
 
       if (data) {
         setStatistics(data);
@@ -199,6 +210,8 @@ export default function GameTeams() {
   };
 
   const calculateScores = () => {
+    console.log('Calculating scores from statistics:', statistics);
+    
     if (!statistics.length) {
       setTeamAScore(0);
       setTeamBScore(0);
@@ -209,21 +222,28 @@ export default function GameTeams() {
     let scoreB = 0;
 
     statistics.forEach(stat => {
+      console.log('Processing stat:', stat);
+      
       if (stat.statistic_type === 'goal') {
         if (stat.team === 'A') {
           scoreA++;
+          console.log('Goal for team A, score:', scoreA);
         } else if (stat.team === 'B') {
           scoreB++;
+          console.log('Goal for team B, score:', scoreB);
         }
       } else if (stat.statistic_type === 'own_goal') {
         if (stat.team === 'A') {
           scoreB++;
+          console.log('Own goal by team A, score B:', scoreB);
         } else if (stat.team === 'B') {
           scoreA++;
+          console.log('Own goal by team B, score A:', scoreA);
         }
       }
     });
 
+    console.log('Final scores - A:', scoreA, 'B:', scoreB);
     setTeamAScore(scoreA);
     setTeamBScore(scoreB);
   };
@@ -348,19 +368,42 @@ export default function GameTeams() {
         await handleStartGame();
       }
 
+      // Get the game to ensure we have the club_id
+      const { data: gameData, error: gameError } = await supabase
+        .from('games')
+        .select('club_id')
+        .eq('id', gameId)
+        .single();
+
+      if (gameError) {
+        console.error('Error fetching game:', gameError);
+        throw gameError;
+      }
+
+      console.log('Game data:', gameData);
+
       const newStat = {
         game_id: gameId,
         member_id: selectedMember.member_id,
         statistic_type: type,
         assist_by: assistById,
-        team: selectedMember.team
+        team: selectedMember.team,
+        club_id: gameData.club_id
       };
 
-      const { error } = await supabase
-        .from('game_statistics')
-        .insert([newStat]);
+      console.log('Inserting statistic:', newStat);
 
-      if (error) throw error;
+      const { data, error } = await supabase
+        .from('game_statistics')
+        .insert([newStat])
+        .select();
+
+      if (error) {
+        console.error('Error saving statistic:', error);
+        throw error;
+      }
+
+      console.log('Statistic saved:', data);
 
       setSuccess(`${type === 'goal' ? 'Gol' : type === 'own_goal' ? 'Gol contra' : 'Defesa'} registrado com sucesso!`);
       setTimeout(() => setSuccess(null), 3000);
@@ -699,10 +742,10 @@ export default function GameTeams() {
                     <img
                       src={participant.members.photo_url}
                       alt={participant.members.nickname}
-                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-2 flex-shrink-0"
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-2"
                     />
                   ) : (
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-200 flex items-center justify-center mr-2 flex-shrink-0">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-200 flex items-center justify-center mr-2">
                       <span className="text-gray-500 text-xs sm:text-sm">
                         {participant.members.nickname.charAt(0).toUpperCase()}
                       </span>
@@ -763,10 +806,10 @@ export default function GameTeams() {
                     <img
                       src={participant.members.photo_url}
                       alt={participant.members.nickname}
-                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-2 flex-shrink-0"
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover mr-2"
                     />
                   ) : (
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-200 flex items-center justify-center mr-2 flex-shrink-0">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gray-200 flex items-center justify-center mr-2">
                       <span className="text-gray-500 text-xs sm:text-sm">
                         {participant.members.nickname.charAt(0).toUpperCase()}
                       </span>

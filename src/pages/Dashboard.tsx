@@ -274,8 +274,8 @@ export default function Dashboard() {
           id,
           nickname,
           birth_date,
-          start_month,
-          game_participations (count)
+          created_at,
+          game_participants (count)
         `)
         .eq('club_id', userClubId)
         .eq('status', 'Ativo');
@@ -287,15 +287,15 @@ export default function Dashboard() {
         const topPlayers = members
           .map(member => {
             const birthDate = new Date(member.birth_date);
-            const startDate = new Date(member.start_month);
+            const startDate = new Date(member.created_at);
             const age = differenceInYears(now, birthDate);
             const membershipTime = differenceInDays(now, startDate);
 
-            const score = (member.game_participations.count * 100000 + membershipTime * 10 + age) / 1000;
+            const score = (member.game_participants.count * 100000 + membershipTime * 10 + age) / 1000;
 
             return {
               nickname: member.nickname,
-              gamesPlayed: member.game_participations.count,
+              gamesPlayed: member.game_participants.count,
               participationRate: 0,
               score,
               membershipTime,
